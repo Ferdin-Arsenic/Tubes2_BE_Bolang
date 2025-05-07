@@ -218,15 +218,21 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 	recipes := make([][]string, 0)
 	seen := make(map[string]bool)
 
-	// 1. Cari resep di tabel
-	doc.Find("table.article-table, table.wikitable").Each(func(_ int, table *goquery.Selection) {
+	// 1. Cari resep di tabel (pastikan result == targetElement)
+	doc.Find("table.wikitable, table.article-table").Each(func(_ int, table *goquery.Selection) {
 		table.Find("tr").Each(func(_ int, row *goquery.Selection) {
 			cols := row.Find("td")
-			if cols.Length() >= 2 {
+			if cols.Length() >= 3 { // kolom: input1 | input2 | result
 				a := strings.TrimSpace(cols.Eq(0).Text())
 				b := strings.TrimSpace(cols.Eq(1).Text())
-				if a != "" && b != "" {
-					key := fmt.Sprintf("%s|%s", strings.ToLower(a), strings.ToLower(b))
+				result := strings.TrimSpace(cols.Eq(2).Text())
+
+				if result != "" && strings.EqualFold(result, targetElement) && a != "" && b != "" {
+					// Optional: sort biar konsisten
+					if a > b {
+						a, b = b, a
+					}
+					key := strings.ToLower(a + "|" + b)
 					if !seen[key] {
 						recipes = append(recipes, []string{a, b})
 						seen[key] = true
@@ -236,28 +242,103 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 		})
 	})
 
-	// 2. Cari resep di list
-	doc.Find("div.mw-parser-output").Each(func(_ int, div *goquery.Selection) {
-		div.Find("ul").Each(func(_ int, ul *goquery.Selection) {
-			ul.Find("li").Each(func(_ int, li *goquery.Selection) {
-				text := li.Text()
-				if strings.Contains(text, "+") {
-					parts := strings.Split(text, "+")
-					if len(parts) == 2 {
-						a := strings.TrimSpace(parts[0])
-						b := strings.TrimSpace(parts[1])
-						key := fmt.Sprintf("%s|%s", strings.ToLower(a), strings.ToLower(b))
-						if a != "" && b != "" && !seen[key] {
-							recipes = append(recipes, []string{a, b})
-							seen[key] = true
-						}
+	// 2. Cari resep dari list (pakai tanda +)
+	doc.Find("div.mw-parser-output ul li").Each(func(_ int, li *goquery.Selection) {
+		text := li.Text()
+
+		// Potong jika ada "→" atau "="
+		if strings.Contains(text, "→") {
+			parts := strings.Split(text, "→")
+			if len(parts) >= 2 {
+				result := strings.TrimSpace(parts[1])
+				text = strings.TrimSpace(parts[0])
+				if !strings.EqualFold(result, targetElement) {
+					return // skip kalau bukan target
+				}
+			}
+		} else if strings.Contains(text, "=") {
+			parts := strings.Split(text, "=")
+			if len(parts) >= 2 {
+				result := strings.TrimSpace(parts[1])
+				text = strings.TrimSpace(parts[0])
+				if !strings.EqualFold(result, targetElement) {
+					return // skip kalau bukan target
+				}
+			}
+		} else {
+			// jika tidak ada panah/equals → tidak tahu result, skip
+			return
+		}
+
+		if strings.Contains(text, "+") {
+			parts := strings.Split(text, "+")
+			if len(parts) == 2 {
+				a := strings.TrimSpace(parts[0])
+				b := strings.TrimSpace(parts[1])
+				if a != "" && b != "" {
+					// Optional: sort biar konsisten
+					if a > b {
+						a, b = b, a
+					}
+					key := strings.ToLower(a + "|" + b)
+					if !seen[key] {
+						recipes = append(recipes, []string{a, b})
+						seen[key] = true
 					}
 				}
-			})
-		})
+			}
+		}
 	})
 
 	return recipes, nil
+}
+
+func fallbackScrape(doc *goquery.Document) [][]string {
+	recipes := make([][]string, 0)
+	seen := make(map[string]bool)
+
+	// Tabel umum
+	doc.Find("table.wikitable, table.article-table").Each(func(_ int, table *goquery.Selection) {
+		table.Find("tr").Each(func(_ int, row *goquery.Selection) {
+			cols := row.Find("td")
+			if cols.Length() >= 3 {
+				a := strings.TrimSpace(cols.Eq(0).Text())
+				b := strings.TrimSpace(cols.Eq(1).Text())
+				if a != "" && b != "" {
+					key := strings.ToLower(a + "|" + b)
+					if !seen[key] {
+						recipes = append(recipes, []string{a, b})
+						seen[key] = true
+					}
+				}
+			}
+		})
+	})
+
+	// List kombinasi
+	doc.Find("div.mw-parser-output ul li").Each(func(_ int, li *goquery.Selection) {
+		text := li.Text()
+		if strings.Contains(text, "→") {
+			text = strings.Split(text, "→")[0]
+		}
+		if strings.Contains(text, "=") {
+			text = strings.Split(text, "=")[0]
+		}
+		if strings.Contains(text, "+") {
+			parts := strings.Split(text, "+")
+			if len(parts) == 2 {
+				a := strings.TrimSpace(parts[0])
+				b := strings.TrimSpace(parts[1])
+				key := strings.ToLower(a + "|" + b)
+				if a != "" && b != "" && !seen[key] {
+					recipes = append(recipes, []string{a, b})
+					seen[key] = true
+				}
+			}
+		}
+	})
+
+	return recipes
 }
 
 // ================ PERBAIKAN UTAMA ================
