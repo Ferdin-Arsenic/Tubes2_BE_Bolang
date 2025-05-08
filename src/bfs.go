@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 type Element struct {
@@ -24,7 +25,6 @@ type TreeNode struct {
 var basicElements = []string{"air", "earth", "fire", "water", "time"}
 
 func main() {
-	// Load elements.json
 	data, err := ioutil.ReadFile("elements.json")
 	if err != nil {
 		log.Fatalf("Failed to read elements.json: %v", err)
@@ -40,42 +40,80 @@ func main() {
 		elementMap[strings.ToLower(e.Name)] = e
 	}
 
-	// User input
+	// Input
 	var target string
 	fmt.Print("Masukkan target element: ")
 	fmt.Scanln(&target)
 	target = strings.ToLower(target)
 
-	// Cari shortest path pakai BFS
-	path := bfs(elementMap, target)
-	if len(path) == 0 {
-		fmt.Println("Tidak ditemukan jalur ke", target)
-		return
+	fmt.Print("Pilih mode (1 = shortest, 2 = multiple): ")
+	var mode int
+	fmt.Scanln(&mode)
+
+	if mode == 1 {
+		// ===== Shortest recipe mode =====
+		path := bfsShortest(elementMap, target)
+		if len(path) == 0 {
+			fmt.Println("Tidak ditemukan jalur ke", target)
+			return
+		}
+
+		fmt.Println("Shortest path ditemukan:", path)
+
+		visited := make(map[string]bool)
+		tree := buildFullTree(target, elementMap, visited)
+		tree.Highlight = true
+
+		writeJSON([]TreeNode{tree}, target+"_shortest.json")
+		fmt.Println("Tree saved to", target+"_shortest.json")
+
+	} else if mode == 2 {
+		// ===== Multiple recipe mode =====
+		var maxRecipe int
+		fmt.Print("Masukkan maksimal recipe: ")
+		fmt.Scanln(&maxRecipe)
+
+		paths := bfsMultiple(elementMap, target, maxRecipe)
+		fmt.Println("Ditemukan", len(paths), "recipe")
+
+		var wg sync.WaitGroup
+		treeChan := make(chan TreeNode, len(paths))
+
+		for _, path := range paths {
+			wg.Add(1)
+			go func(p []string) {
+				defer wg.Done()
+				visited := make(map[string]bool)
+				tree := buildFullTree(p[len(p)-1], elementMap, visited)
+				tree.Highlight = true
+				treeChan <- tree
+			}(path)
+		}
+
+		wg.Wait()
+		close(treeChan)
+
+		unique := make(map[string]bool)
+		var allTrees []TreeNode
+
+		for t := range treeChan {
+			jsonBytes, _ := json.Marshal(t)
+			key := string(jsonBytes)
+			if !unique[key] {
+				allTrees = append(allTrees, t)
+				unique[key] = true
+			}
+		}
+
+		writeJSON(allTrees, target+"_multiple.json")
+		fmt.Println("Semua tree tersimpan di", target+"_multiple.json")
+
+	} else {
+		fmt.Println("Mode tidak dikenali.")
 	}
-
-	fmt.Println("Shortest path ditemukan:", path)
-
-	// Bangun tree rekursif
-	visited := make(map[string]bool)
-	tree := buildFullTree(target, elementMap, visited)
-	tree.Highlight = true
-
-	// Tandai node target sebagai highlight
-	tree.Highlight = true
-
-	// Simpan ke JSON
-	outFile := "tree_" + target + ".json"
-	f, _ := os.Create(outFile)
-	defer f.Close()
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	enc.Encode(tree)
-
-	fmt.Println("Tree saved to", outFile)
 }
 
-// BFS mencari shortest path (list of nodes)
-func bfs(elementMap map[string]Element, target string) []string {
+func bfsShortest(elementMap map[string]Element, target string) []string {
 	queue := [][]string{}
 	visited := make(map[string]bool)
 
@@ -115,12 +153,52 @@ func bfs(elementMap map[string]Element, target string) []string {
 	return nil
 }
 
-// Build tree rekursif (sampai basic element)
+func bfsMultiple(elementMap map[string]Element, target string, maxRecipe int) [][]string {
+	queue := [][]string{}
+	visited := make(map[string]int)
+	var results [][]string
+
+	for _, basic := range basicElements {
+		queue = append(queue, []string{basic})
+	}
+
+	for len(queue) > 0 && len(results) < maxRecipe {
+		path := queue[0]
+		queue = queue[1:]
+		node := strings.ToLower(path[len(path)-1])
+
+		if visited[node] >= maxRecipe {
+			continue
+		}
+		visited[node]++
+
+		if node == target {
+			results = append(results, path)
+			continue
+		}
+
+		for name, elem := range elementMap {
+			for _, recipe := range elem.Recipes {
+				if len(recipe) != 2 {
+					continue
+				}
+				a := strings.ToLower(recipe[0])
+				b := strings.ToLower(recipe[1])
+				if a == node || b == node {
+					newPath := append([]string{}, path...)
+					newPath = append(newPath, name)
+					queue = append(queue, newPath)
+				}
+			}
+		}
+	}
+	return results
+}
+
 func buildFullTree(name string, elementMap map[string]Element, visited map[string]bool) TreeNode {
 	node := TreeNode{Name: capitalize(name)}
 
 	if isBasicElement(name) || visited[name] {
-		// Kalau basic element, atau sudah pernah dikunjungi → jangan expand lagi
 		return node
 	}
 
@@ -144,8 +222,15 @@ func buildFullTree(name string, elementMap map[string]Element, visited map[strin
 		}
 		node.Children = append(node.Children, childNode)
 	}
-
 	return node
+}
+
+func writeJSON(data []TreeNode, filename string) {
+	f, _ := os.Create(filename)
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	enc.Encode(data)
 }
 
 func isBasicElement(name string) bool {
