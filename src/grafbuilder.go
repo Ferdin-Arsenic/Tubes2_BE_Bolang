@@ -11,7 +11,13 @@ import (
 	"strings"
 )
 
-var basicElements = []string{"Fire", "Water", "Air", "Earth", "Time"}
+type Element struct {
+	Name    string     `json:"name"`
+	Recipes [][]string `json:"recipes"`
+	Tier    int        `json:"tier"`
+}
+
+var basicElements = []string{"Fire", "Water", "Air", "Earth"}
 
 func BuildGraph(filename string) map[string][]string {
 	file, err := os.Open(filename)
@@ -25,35 +31,30 @@ func BuildGraph(filename string) map[string][]string {
 		log.Fatalf("Gagal membaca file: %v", err)
 	}
 
-	var recipes map[string][][]string
-	if err := json.Unmarshal(bytes, &recipes); err != nil {
+	var elements []Element
+	if err := json.Unmarshal(bytes, &elements); err != nil {
 		log.Fatalf("Gagal parse JSON: %v", err)
 	}
 
 	graph := make(map[string][]string)
-	for _, recipeList := range recipes {
-		for _, recipe := range recipeList {
-			if len(recipe) < 2 {
+
+	for _, elem := range elements {
+		output := elem.Name
+		for _, recipe := range elem.Recipes {
+			if len(recipe) != 2 {
 				continue
 			}
-			output := strings.TrimSpace(recipe[0])
-			inputs := strings.Split(recipe[1], "\n")
-			for _, pair := range inputs {
-				parts := strings.Split(pair, "+")
-				if len(parts) != 2 {
-					continue
-				}
-				ing1 := strings.TrimSpace(parts[0])
-				ing2 := strings.TrimSpace(parts[1])
+			ing1 := strings.TrimSpace(recipe[0])
+			ing2 := strings.TrimSpace(recipe[1])
 
-				graph[ing1] = append(graph[ing1], output)
-				graph[ing2] = append(graph[ing2], output)
-				fmt.Printf("Edge: %s → %s\n", ing1, output)
-				fmt.Printf("Edge: %s → %s\n", ing2, output)
+			graph[ing1] = append(graph[ing1], output)
+			graph[ing2] = append(graph[ing2], output)
 
-			}
+			fmt.Printf("Edge: %s → %s\n", ing1, output)
+			fmt.Printf("Edge: %s → %s\n", ing2, output)
 		}
 	}
+
 	return graph
 }
 
@@ -75,7 +76,7 @@ func BFS(graph map[string][]string, starts []string, target string) []string {
 		}
 		visited[node] = true
 
-		if node == target {
+		if strings.EqualFold(node, target) {
 			return path
 		}
 
@@ -100,7 +101,7 @@ func DFS(graph map[string][]string, starts []string, target string) []string {
 		visited[node] = true
 		path = append(path, node)
 
-		if node == target {
+		if strings.EqualFold(node, target) {
 			result = path
 			return true
 		}
@@ -122,13 +123,16 @@ func DFS(graph map[string][]string, starts []string, target string) []string {
 }
 
 func main() {
-	graph := BuildGraph("recipes.json")
+	graph := BuildGraph("elements.json")
+
+	// sort neighbor list
 	for node := range graph {
 		sort.Strings(graph[node])
 	}
-	reader := bufio.NewReader(os.Stdin)
 
+	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("=== Program Pencarian Elemen dari Elemen Dasar ===")
+
 	fmt.Print("Masukkan elemen target: ")
 	target, _ := reader.ReadString('\n')
 	target = strings.TrimSpace(target)
