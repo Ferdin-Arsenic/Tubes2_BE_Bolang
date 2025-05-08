@@ -1,0 +1,849 @@
+{
+  "name": "Glacier",
+  "children": [
+    {
+      "name": "Ice + Mountain",
+      "children": [
+        {
+          "name": "Ice",
+          "children": [
+            {
+              "name": "Cold + Water",
+              "children": [
+                {
+                  "name": "Cold",
+                  "children": [
+                    {
+                      "name": "Human + Rain",
+                      "children": [
+                        {
+                          "name": "Human",
+                          "children": [
+                            {
+                              "name": "Earth + Life",
+                              "children": [
+                                {
+                                  "name": "Earth"
+                                },
+                                {
+                                  "name": "Life",
+                                  "children": [
+                                    {
+                                      "name": "Energy + Swamp",
+                                      "children": [
+                                        {
+                                          "name": "Energy",
+                                          "children": [
+                                            {
+                                              "name": "Air + Fire",
+                                              "children": [
+                                                {
+                                                  "name": "Air"
+                                                },
+                                                {
+                                                  "name": "Fire"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "name": "Fire + Fire",
+                                              "children": [
+                                                {
+                                                  "name": "Fire"
+                                                },
+                                                {
+                                                  "name": "Fire"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "name": "Swamp",
+                                          "children": [
+                                            {
+                                              "name": "Mud + Plant",
+                                              "children": [
+                                                {
+                                                  "name": "Mud",
+                                                  "children": [
+                                                    {
+                                                      "name": "Earth + Water",
+                                                      "children": [
+                                                        {
+                                                          "name": "Earth"
+                                                        },
+                                                        {
+                                                          "name": "Water"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "name": "Plant",
+                                                  "children": [
+                                                    {
+                                                      "name": "Earth + Rain",
+                                                      "children": [
+                                                        {
+                                                          "name": "Earth"
+                                                        },
+                                                        {
+                                                          "name": "Rain",
+                                                          "children": [
+                                                            {
+                                                              "name": "Air + Water",
+                                                              "children": [
+                                                                {
+                                                                  "name": "Air"
+                                                                },
+                                                                {
+                                                                  "name": "Water"
+                                                                }
+                                                              ]
+                                                            },
+                                                            {
+                                                              "name": "Cloud + Water",
+                                                              "children": [
+                                                                {
+                                                                  "name": "Cloud",
+                                                                  "children": [
+                                                                    {
+                                                                      "name": "Air + Steam",
+                                                                      "children": [
+                                                                        {
+                                                                          "name": "Air"
+                                                                        },
+                                                                        {
+                                                                          "name": "Steam",
+                                                                          "children": [
+                                                                            {
+                                                                              "name": "Fire + Water",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "Fire"
+                                                                                },
+                                                                                {
+                                                                                  "name": "Water"
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    },
+                                                                    {
+                                                                      "name": "Atmosphere + Water",
+                                                                      "children": [
+                                                                        {
+                                                                          "name": "Atmosphere",
+                                                                          "children": [
+                                                                            {
+                                                                              "name": "Air + Pressure",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "Air"
+                                                                                },
+                                                                                {
+                                                                                  "name": "Pressure",
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "name": "Earth + Earth",
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "name": "Earth"
+                                                                                        },
+                                                                                        {
+                                                                                          "name": "Earth"
+                                                                                        }
+                                                                                      ]
+                                                                                    },
+                                                                                    {
+                                                                                      "name": "Air + Air",
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "name": "Air"
+                                                                                        },
+                                                                                        {
+                                                                                          "name": "Air"
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            },
+                                                                            {
+                                                                              "name": "Air + Planet",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "Air"
+                                                                                },
+                                                                                {
+                                                                                  "name": "Planet",
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "name": "Earth + Space",
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "name": "Earth"
+                                                                                        },
+                                                                                        {
+                                                                                          "name": "Space",
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "name": "Sky + Star",
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "name": "Sky",
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "name": "Air + Cloud",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Air"
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Cloud"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "name": "Atmosphere + Sun",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Atmosphere"
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Sun",
+                                                                                                          "children": [
+                                                                                                            {
+                                                                                                              "name": "Fire + Sky",
+                                                                                                              "children": [
+                                                                                                                {
+                                                                                                                  "name": "Fire"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                  "name": "Sky"
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            },
+                                                                                                            {
+                                                                                                              "name": "Fire + Planet",
+                                                                                                              "children": [
+                                                                                                                {
+                                                                                                                  "name": "Fire"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                  "name": "Planet"
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            }
+                                                                                                          ]
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                },
+                                                                                                {
+                                                                                                  "name": "Star",
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "name": "Night + Sky",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Night",
+                                                                                                          "children": [
+                                                                                                            {
+                                                                                                              "name": "Moon + Sky",
+                                                                                                              "children": [
+                                                                                                                {
+                                                                                                                  "name": "Moon",
+                                                                                                                  "children": [
+                                                                                                                    {
+                                                                                                                      "name": "Sky + Stone",
+                                                                                                                      "children": [
+                                                                                                                        {
+                                                                                                                          "name": "Sky"
+                                                                                                                        },
+                                                                                                                        {
+                                                                                                                          "name": "Stone",
+                                                                                                                          "children": [
+                                                                                                                            {
+                                                                                                                              "name": "Air + Lava",
+                                                                                                                              "children": [
+                                                                                                                                {
+                                                                                                                                  "name": "Air"
+                                                                                                                                },
+                                                                                                                                {
+                                                                                                                                  "name": "Lava",
+                                                                                                                                  "children": [
+                                                                                                                                    {
+                                                                                                                                      "name": "Earth + Fire",
+                                                                                                                                      "children": [
+                                                                                                                                        {
+                                                                                                                                          "name": "Earth"
+                                                                                                                                        },
+                                                                                                                                        {
+                                                                                                                                          "name": "Fire"
+                                                                                                                                        }
+                                                                                                                                      ]
+                                                                                                                                    }
+                                                                                                                                  ]
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            },
+                                                                                                                            {
+                                                                                                                              "name": "Earth + Pressure",
+                                                                                                                              "children": [
+                                                                                                                                {
+                                                                                                                                  "name": "Earth"
+                                                                                                                                },
+                                                                                                                                {
+                                                                                                                                  "name": "Pressure"
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            }
+                                                                                                                          ]
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    },
+                                                                                                                    {
+                                                                                                                      "name": "Planet + Stone",
+                                                                                                                      "children": [
+                                                                                                                        {
+                                                                                                                          "name": "Planet"
+                                                                                                                        },
+                                                                                                                        {
+                                                                                                                          "name": "Stone"
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    }
+                                                                                                                  ]
+                                                                                                                },
+                                                                                                                {
+                                                                                                                  "name": "Sky"
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            },
+                                                                                                            {
+                                                                                                              "name": "Moon + Time",
+                                                                                                              "children": [
+                                                                                                                {
+                                                                                                                  "name": "Moon"
+                                                                                                                },
+                                                                                                                {
+                                                                                                                  "name": "Time"
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            }
+                                                                                                          ]
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Sky"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            },
+                                                                                            {
+                                                                                              "name": "Sky + Solar system",
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "name": "Sky"
+                                                                                                },
+                                                                                                {
+                                                                                                  "name": "Solar system",
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "name": "Planet + Sun",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Planet"
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Sun"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "name": "Planet + Planet",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Planet"
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Planet"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    },
+                                                                                    {
+                                                                                      "name": "Continent + Continent",
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "name": "Continent",
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "name": "Earth + Land",
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "name": "Earth"
+                                                                                                },
+                                                                                                {
+                                                                                                  "name": "Land",
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "name": "Earth + Earth",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Earth"
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Earth"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "name": "Continent"
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        },
+                                                                        {
+                                                                          "name": "Water"
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                },
+                                                                {
+                                                                  "name": "Water"
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "name": "Life + Soil",
+                                                      "children": [
+                                                        {
+                                                          "name": "Life"
+                                                        },
+                                                        {
+                                                          "name": "Soil",
+                                                          "children": [
+                                                            {
+                                                              "name": "Earth + Life",
+                                                              "children": [
+                                                                {
+                                                                  "name": "Earth"
+                                                                },
+                                                                {
+                                                                  "name": "Life"
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "name": "Grass + Mud",
+                                              "children": [
+                                                {
+                                                  "name": "Grass",
+                                                  "children": [
+                                                    {
+                                                      "name": "Earth + Plant",
+                                                      "children": [
+                                                        {
+                                                          "name": "Earth"
+                                                        },
+                                                        {
+                                                          "name": "Plant"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                },
+                                                {
+                                                  "name": "Mud"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "Primordial soup + Time",
+                                      "children": [
+                                        {
+                                          "name": "Primordial soup",
+                                          "children": [
+                                            {
+                                              "name": "Earth + Sea",
+                                              "children": [
+                                                {
+                                                  "name": "Earth"
+                                                },
+                                                {
+                                                  "name": "Sea",
+                                                  "children": [
+                                                    {
+                                                      "name": "Water + Water",
+                                                      "children": [
+                                                        {
+                                                          "name": "Water"
+                                                        },
+                                                        {
+                                                          "name": "Water"
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "name": "Lake + Water",
+                                                      "children": [
+                                                        {
+                                                          "name": "Lake",
+                                                          "children": [
+                                                            {
+                                                              "name": "Pond + Water",
+                                                              "children": [
+                                                                {
+                                                                  "name": "Pond",
+                                                                  "children": [
+                                                                    {
+                                                                      "name": "Garden + Water",
+                                                                      "children": [
+                                                                        {
+                                                                          "name": "Garden",
+                                                                          "children": [
+                                                                            {
+                                                                              "name": "Plant + Plant",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "Plant"
+                                                                                },
+                                                                                {
+                                                                                  "name": "Plant"
+                                                                                }
+                                                                              ]
+                                                                            },
+                                                                            {
+                                                                              "name": "House + Plant",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "House",
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "name": "Wall + Wall",
+                                                                                      "children": [
+                                                                                        {
+                                                                                          "name": "Wall",
+                                                                                          "children": [
+                                                                                            {
+                                                                                              "name": "Brick + Brick",
+                                                                                              "children": [
+                                                                                                {
+                                                                                                  "name": "Brick",
+                                                                                                  "children": [
+                                                                                                    {
+                                                                                                      "name": "Fire + Mud",
+                                                                                                      "children": [
+                                                                                                        {
+                                                                                                          "name": "Fire"
+                                                                                                        },
+                                                                                                        {
+                                                                                                          "name": "Mud"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                },
+                                                                                                {
+                                                                                                  "name": "Brick"
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        },
+                                                                                        {
+                                                                                          "name": "Wall"
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                },
+                                                                                {
+                                                                                  "name": "Plant"
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        },
+                                                                        {
+                                                                          "name": "Water"
+                                                                        }
+                                                                      ]
+                                                                    },
+                                                                    {
+                                                                      "name": "Puddle + Water",
+                                                                      "children": [
+                                                                        {
+                                                                          "name": "Puddle",
+                                                                          "children": [
+                                                                            {
+                                                                              "name": "Ice + Sun",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "Ice"
+                                                                                },
+                                                                                {
+                                                                                  "name": "Sun"
+                                                                                }
+                                                                              ]
+                                                                            },
+                                                                            {
+                                                                              "name": "Water + Water",
+                                                                              "children": [
+                                                                                {
+                                                                                  "name": "Water"
+                                                                                },
+                                                                                {
+                                                                                  "name": "Water"
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        },
+                                                                        {
+                                                                          "name": "Water"
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                },
+                                                                {
+                                                                  "name": "Water"
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        },
+                                                        {
+                                                          "name": "Water"
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "name": "Time"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "Energy + Primordial soup",
+                                      "children": [
+                                        {
+                                          "name": "Energy"
+                                        },
+                                        {
+                                          "name": "Primordial soup"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "name": "Clay + Life",
+                              "children": [
+                                {
+                                  "name": "Clay",
+                                  "children": [
+                                    {
+                                      "name": "Mud + Sand",
+                                      "children": [
+                                        {
+                                          "name": "Mud"
+                                        },
+                                        {
+                                          "name": "Sand",
+                                          "children": [
+                                            {
+                                              "name": "Air + Stone",
+                                              "children": [
+                                                {
+                                                  "name": "Air"
+                                                },
+                                                {
+                                                  "name": "Stone"
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "name": "Mud + Stone",
+                                      "children": [
+                                        {
+                                          "name": "Mud"
+                                        },
+                                        {
+                                          "name": "Stone"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "name": "Life"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "name": "Rain"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Human + Wind",
+                      "children": [
+                        {
+                          "name": "Human"
+                        },
+                        {
+                          "name": "Wind",
+                          "children": [
+                            {
+                              "name": "Air + Pressure",
+                              "children": [
+                                {
+                                  "name": "Air"
+                                },
+                                {
+                                  "name": "Pressure"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Water"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Mountain",
+          "children": [
+            {
+              "name": "Earth + Earthquake",
+              "children": [
+                {
+                  "name": "Earth"
+                },
+                {
+                  "name": "Earthquake",
+                  "children": [
+                    {
+                      "name": "Earth + Energy",
+                      "children": [
+                        {
+                          "name": "Earth"
+                        },
+                        {
+                          "name": "Energy"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Mountain + Snow",
+      "children": [
+        {
+          "name": "Mountain"
+        },
+        {
+          "name": "Snow",
+          "children": [
+            {
+              "name": "Cold + Rain",
+              "children": [
+                {
+                  "name": "Cold"
+                },
+                {
+                  "name": "Rain"
+                }
+              ]
+            },
+            {
+              "name": "Mountain + Rain",
+              "children": [
+                {
+                  "name": "Mountain"
+                },
+                {
+                  "name": "Rain"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "highlight": true
+}
