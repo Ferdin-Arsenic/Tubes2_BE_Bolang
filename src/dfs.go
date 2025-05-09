@@ -59,3 +59,7 @@ func dfsHelper(elementMap map[string]Element, currentElement string, targetNode 
 		}
 	}
 }
+
+func dfsShortest() []string{
+	return []string{}
+}
