@@ -16,9 +16,7 @@ func main() {
 
 func mainDFS(){
 	data, err := ioutil.ReadFile("elements.json")
-	if err != nil {
-		log.Fatalf("Failed to read elements.json: %v", err)
-	}
+	if err != nil {log.Fatalf("Failed to read elements.json: %v", err)}
 
 	var elements []Element
 	if err := json.Unmarshal(data, &elements); err != nil {
@@ -40,9 +38,19 @@ func mainDFS(){
 	var mode int
 	fmt.Scanln(&mode)
 
+	fmt.Print("Pilih algoritma (1 = bfs, 2 = dfs): ")
+	var algo int
+	fmt.Scanln(&algo)
+
+
+	var path []string
 	if mode == 1 {
 		// ===== Shortest recipe mode =====
-		path := bfsShortest(elementMap, target)
+		if algo == 1 {
+			path = bfsShortest(elementMap, target)
+		} else {
+			path = dfsShortest()
+		}
 		if len(path) == 0 {
 			fmt.Println("Tidak ditemukan jalur ke", target)
 			return
@@ -56,14 +64,19 @@ func mainDFS(){
 
 		writeJSON([]TreeNode{tree}, target+"_shortest.json")
 		fmt.Println("Tree saved to", target+"_shortest.json")
-
+	
 	} else if mode == 2 {
-		// ===== Multiple recipe mode =====
+		var paths [][]string
 		var maxRecipe int
 		fmt.Print("Masukkan maksimal recipe: ")
 		fmt.Scanln(&maxRecipe)
 
-		paths := dfsMultiple(elementMap, basicElements,target, maxRecipe)
+		if algo == 1 {
+			paths = bfsMultiple(elementMap, target, maxRecipe)
+		
+		} else {
+			paths = dfsMultiple(elementMap, basicElements,target, maxRecipe)
+		}
 		fmt.Println("Ditemukan", len(paths), "recipe")
 
 		var wg sync.WaitGroup
