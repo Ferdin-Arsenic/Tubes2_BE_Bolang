@@ -44,7 +44,7 @@ func main(){
 		if algo == 1 {
 			path = bfsShortest(elementMap, target)
 		} else {
-			path = dfsShortest()
+			path = dfsMultiple(elementMap, basicElements,target, 1)[0]
 		}
 		if len(path) == 0 {
 			fmt.Println("Tidak ditemukan jalur ke", target)
