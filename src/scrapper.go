@@ -13,15 +13,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-type Element struct {
-	Name    string     `json:"name"`
-	Recipes [][]string `json:"recipes"`
-	Tier    int        `json:"tier"`
-}
-
-var basicElements = []string{"air", "earth", "fire", "water"}
-
-func main() {
+func Scraping() {
 	baseURL := "https://little-alchemy.fandom.com"
 	listURL := baseURL + "/wiki/Elements_(Little_Alchemy_2)"
 
@@ -593,17 +585,6 @@ func countUpdatedElements(elements []Element) int {
 		}
 	}
 	return count
-}
-
-// Helper untuk mengecek apakah elemen adalah elemen dasar
-func isBasicElement(name string) bool {
-	lowName := strings.ToLower(name)
-	for _, b := range basicElements {
-		if lowName == b {
-			return true
-		}
-	}
-	return false
 }
 
 // Fungsi untuk menganalisis distribusi tier

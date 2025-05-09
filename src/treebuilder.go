@@ -52,7 +52,7 @@ func buildFullTree(name string, elementMap map[string]Element, visited map[strin
 }
 
 func writeJSON(data []TreeNode, filename string) {
-	f, _ := os.Create(filename)
+	f, _ := os.Create("tree/" + filename)
 	defer f.Close()
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
