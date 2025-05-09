@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -147,9 +148,45 @@ func normalizeRecipes(recipes [][]string) [][]string {
 
 // Fungsi untuk membersihkan nama elemen
 func cleanElementName(name string) string {
-	// Hapus karakter khusus dan text dalam kurung
-	name = strings.Split(name, "(")[0]
+	// Remove any text in parentheses
+	if idx := strings.Index(name, "("); idx != -1 {
+		name = name[:idx]
+	}
+
+	// Remove any text after special characters that might appear in descriptions
+	for _, char := range []string{"→", "=", ":", "/", "-", ",", ";"} {
+		if idx := strings.Index(name, char); idx != -1 {
+			name = name[:idx]
+		}
+	}
+
+	// Trim leading/trailing whitespace
 	name = strings.TrimSpace(name)
+
+	// Remove any non-essential characters
+	name = strings.TrimRight(name, ".,;:•·-")
+
+	// Remove special characters used in the wiki
+	name = strings.ReplaceAll(name, "•", "")
+	name = strings.ReplaceAll(name, "·", "")
+
+	// Remove common patterns in the wiki text that aren't part of element names
+	patterns := []string{
+		"Recipe:", "Recipes:", "Created from:", "Makes:",
+		"Created by:", "Created with:", "Combines with:",
+		"How to make", "Made from", "Created using",
+	}
+
+	for _, pattern := range patterns {
+		if strings.HasPrefix(strings.ToLower(name), strings.ToLower(pattern)) {
+			name = name[len(pattern):]
+			name = strings.TrimSpace(name)
+		}
+	}
+
+	// Second round of whitespace trimming
+	name = strings.TrimSpace(name)
+
 	return name
 }
 
@@ -218,20 +255,59 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 	recipes := make([][]string, 0)
 	seen := make(map[string]bool)
 
-	// 1. Cari resep di tabel (pastikan result == targetElement)
-	doc.Find("table.wikitable, table.article-table").Each(func(_ int, table *goquery.Selection) {
-		table.Find("tr").Each(func(_ int, row *goquery.Selection) {
-			cols := row.Find("td")
-			if cols.Length() >= 3 { // kolom: input1 | input2 | result
-				a := strings.TrimSpace(cols.Eq(0).Text())
-				b := strings.TrimSpace(cols.Eq(1).Text())
-				result := strings.TrimSpace(cols.Eq(2).Text())
+	// First, check if we're on the correct page for the element
+	pageTitle := doc.Find("h1.page-header__title").Text()
+	pageTitle = strings.TrimSpace(pageTitle)
 
-				if result != "" && strings.EqualFold(result, targetElement) && a != "" && b != "" {
-					// Optional: sort biar konsisten
-					if a > b {
-						a, b = b, a
+	fmt.Printf("Scraping page for '%s', page title: '%s'\n", targetElement, pageTitle)
+
+	// ==================== APPROACH 1: Find recipes in bullet points ====================
+	// Look for the bullet point format common on element pages
+	doc.Find("ul li").Each(func(_ int, li *goquery.Selection) {
+		liText := li.Text()
+		if strings.Contains(liText, "+") {
+			parts := strings.Split(liText, "+")
+			if len(parts) == 2 {
+				a := strings.TrimSpace(parts[0])
+				b := strings.TrimSpace(parts[1])
+
+				// Clean the element names
+				a = cleanElementName(a)
+				b = cleanElementName(b)
+
+				if a != "" && b != "" {
+					key := strings.ToLower(a + "|" + b)
+					if !seen[key] {
+						recipes = append(recipes, []string{a, b})
+						seen[key] = true
 					}
+				}
+			}
+		}
+	})
+
+	// ==================== APPROACH 2: Find recipes in tables ====================
+	doc.Find("table").Each(func(_ int, table *goquery.Selection) {
+		table.Find("tr").Each(func(_ int, row *goquery.Selection) {
+			// First check if this is a recipe table
+			cells := row.Find("td")
+
+			// Check if this looks like a recipe row (ingredients and result)
+			if cells.Length() >= 3 {
+				a := strings.TrimSpace(cells.Eq(0).Text())
+				b := strings.TrimSpace(cells.Eq(1).Text())
+				result := strings.TrimSpace(cells.Eq(2).Text())
+
+				// If we have a table where the result matches our target element
+				isTargetResult := strings.EqualFold(cleanElementName(result), cleanElementName(targetElement))
+
+				// Or if we're on the element's page and this looks like a recipe row
+				onElementPage := strings.EqualFold(cleanElementName(pageTitle), cleanElementName(targetElement))
+
+				if (isTargetResult || onElementPage) && a != "" && b != "" {
+					a = cleanElementName(a)
+					b = cleanElementName(b)
+
 					key := strings.ToLower(a + "|" + b)
 					if !seen[key] {
 						recipes = append(recipes, []string{a, b})
@@ -242,44 +318,83 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 		})
 	})
 
-	// 2. Cari resep dari list (pakai tanda +)
-	doc.Find("div.mw-parser-output ul li").Each(func(_ int, li *goquery.Selection) {
-		text := li.Text()
+	// ==================== APPROACH 3: Visual recipe format ====================
+	// This approach is generalized to work with any element, not just Brick
+	doc.Find("div.mw-parser-output").Each(func(_ int, div *goquery.Selection) {
+		div.Find("p, div").Each(func(_ int, elem *goquery.Selection) {
+			elemHTML, _ := elem.Html()
 
-		// Potong jika ada "→" atau "="
-		if strings.Contains(text, "→") {
-			parts := strings.Split(text, "→")
-			if len(parts) >= 2 {
-				result := strings.TrimSpace(parts[1])
-				text = strings.TrimSpace(parts[0])
-				if !strings.EqualFold(result, targetElement) {
-					return // skip kalau bukan target
+			// If we find a pattern that looks like a recipe block (contains + sign)
+			if strings.Contains(elemHTML, "+") {
+				elemText := elem.Text()
+				lines := strings.Split(elemText, "\n")
+
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if strings.Contains(line, "+") {
+						parts := strings.Split(line, "+")
+						if len(parts) == 2 {
+							a := strings.TrimSpace(parts[0])
+							b := strings.TrimSpace(parts[1])
+
+							a = cleanElementName(a)
+							b = cleanElementName(b)
+
+							if a != "" && b != "" {
+								key := strings.ToLower(a + "|" + b)
+								if !seen[key] {
+									recipes = append(recipes, []string{a, b})
+									seen[key] = true
+								}
+							}
+						}
+					}
 				}
 			}
-		} else if strings.Contains(text, "=") {
-			parts := strings.Split(text, "=")
-			if len(parts) >= 2 {
-				result := strings.TrimSpace(parts[1])
-				text = strings.TrimSpace(parts[0])
-				if !strings.EqualFold(result, targetElement) {
-					return // skip kalau bukan target
+		})
+	})
+
+	// ==================== APPROACH 4: Look for specific list class ====================
+	// This is a common format on the wiki for recipe lists
+	doc.Find("ul.wds-list, ul.wikia-gallery").Each(func(_ int, ul *goquery.Selection) {
+		ul.Find("li").Each(func(_ int, li *goquery.Selection) {
+			elemText := li.Text()
+			if strings.Contains(elemText, "+") {
+				parts := strings.Split(elemText, "+")
+				if len(parts) == 2 {
+					a := strings.TrimSpace(parts[0])
+					b := strings.TrimSpace(parts[1])
+
+					a = cleanElementName(a)
+					b = cleanElementName(b)
+
+					if a != "" && b != "" {
+						key := strings.ToLower(a + "|" + b)
+						if !seen[key] {
+							recipes = append(recipes, []string{a, b})
+							seen[key] = true
+						}
+					}
 				}
 			}
-		} else {
-			// jika tidak ada panah/equals → tidak tahu result, skip
-			return
-		}
+		})
+	})
 
-		if strings.Contains(text, "+") {
-			parts := strings.Split(text, "+")
+	// ==================== APPROACH 5: Look for list items with images ====================
+	// Many recipe displays use images for the elements
+	doc.Find("li").Each(func(_ int, li *goquery.Selection) {
+		// Check if this list item might be a recipe (contains images and + sign)
+		if li.Find("img").Length() > 0 && strings.Contains(li.Text(), "+") {
+			elemText := li.Text()
+			parts := strings.Split(elemText, "+")
 			if len(parts) == 2 {
 				a := strings.TrimSpace(parts[0])
 				b := strings.TrimSpace(parts[1])
+
+				a = cleanElementName(a)
+				b = cleanElementName(b)
+
 				if a != "" && b != "" {
-					// Optional: sort biar konsisten
-					if a > b {
-						a, b = b, a
-					}
 					key := strings.ToLower(a + "|" + b)
 					if !seen[key] {
 						recipes = append(recipes, []string{a, b})
@@ -289,6 +404,87 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 			}
 		}
 	})
+
+	// ==================== APPROACH 6: Additional recipe list classes ====================
+	// Looking for more specific classes used in recipe lists
+	doc.Find("div.recipe-list, div.recipes, section.recipes").Each(func(_ int, div *goquery.Selection) {
+		div.Find("li, div").Each(func(_ int, item *goquery.Selection) {
+			elemText := item.Text()
+			if strings.Contains(elemText, "+") {
+				parts := strings.Split(elemText, "+")
+				if len(parts) == 2 {
+					a := strings.TrimSpace(parts[0])
+					b := strings.TrimSpace(parts[1])
+
+					a = cleanElementName(a)
+					b = cleanElementName(b)
+
+					if a != "" && b != "" {
+						key := strings.ToLower(a + "|" + b)
+						if !seen[key] {
+							recipes = append(recipes, []string{a, b})
+							seen[key] = true
+						}
+					}
+				}
+			}
+		})
+	})
+
+	// ==================== APPROACH 7: Fallback if no recipes found ====================
+	// More aggressive search if we haven't found any recipes yet
+	if len(recipes) == 0 {
+		// Look for any element that might contain a recipe pattern
+		doc.Find("*").Each(func(_ int, elem *goquery.Selection) {
+			elemText := elem.Text()
+			if strings.Contains(elemText, "+") {
+				lines := strings.Split(elemText, "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if strings.Contains(line, "+") {
+						parts := strings.Split(line, "+")
+						if len(parts) == 2 {
+							a := strings.TrimSpace(parts[0])
+							b := strings.TrimSpace(parts[1])
+
+							a = cleanElementName(a)
+							b = cleanElementName(b)
+
+							if a != "" && b != "" {
+								key := strings.ToLower(a + "|" + b)
+								if !seen[key] {
+									recipes = append(recipes, []string{a, b})
+									seen[key] = true
+								}
+							}
+						}
+					}
+				}
+			}
+		})
+	}
+
+	// Debug output
+	fmt.Printf("Found %d recipes for %s\n", len(recipes), targetElement)
+	for i, recipe := range recipes {
+		if i < 10 { // Limit debug output
+			fmt.Printf("  Recipe %d: %s + %s\n", i+1, recipe[0], recipe[1])
+		}
+	}
+
+	// Sort recipes for consistent output
+	sort.Slice(recipes, func(i, j int) bool {
+		if recipes[i][0] == recipes[j][0] {
+			return recipes[i][1] < recipes[j][1]
+		}
+		return recipes[i][0] < recipes[j][0]
+	})
+
+	// If this is likely a main element page and we have no recipes,
+	// add a warning to help with debugging
+	if len(recipes) == 0 && strings.EqualFold(cleanElementName(pageTitle), cleanElementName(targetElement)) {
+		fmt.Printf("WARNING: No recipes found for %s on its own page!\n", targetElement)
+	}
 
 	return recipes, nil
 }
