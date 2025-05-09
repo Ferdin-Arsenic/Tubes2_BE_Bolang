@@ -22,7 +22,7 @@ type TreeNode struct {
 	Highlight bool       `json:"highlight,omitempty"`
 }
 
-var basicElements = []string{"air", "earth", "fire", "water", "time"}
+var basicElements = []string{"air", "earth", "fire", "water"}
 
 func main() {
 	data, err := ioutil.ReadFile("elements.json")
