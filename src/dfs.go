@@ -18,8 +18,6 @@ func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 		allFoundRecipes = append(allFoundRecipes, emptyRecipe)
         return allFoundRecipes
     }	
-	// Map untuk mendeteksi cycle
-	pathCycleDetector := make(map[string]bool)
 
 	// Map untuk membangun langkah-langkah resep untuk satu resep
 	currentRecipeSteps := make(map[string][]string)
@@ -32,13 +30,13 @@ func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 	}
 
 	// Param target pertama untuk rekursi pertama, target kedua untuk setiap rekursi
-	dfsData.dfsRecursive(target, currentRecipeSteps, pathCycleDetector)
+	dfsData.dfsRecursive(target, currentRecipeSteps)
 
 	return allFoundRecipes
 }
 
 // Fungsi pembantu rekursif untuk DFS backward
-func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps map[string][]string, pathCycleDetector map[string]bool) bool {
+func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps map[string][]string) bool {
 	if len(*d.allFoundRecipes) >= d.maxRecipes {
 		return false 
 	}
@@ -46,12 +44,6 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 	if isBasicElement(elementToMakeCurrently) {
 		return true
 	}
-
-	if pathCycleDetector[elementToMakeCurrently] {
-		return false // Siklus
-	}
-	pathCycleDetector[elementToMakeCurrently] = true
-	defer delete(pathCycleDetector, elementToMakeCurrently)
 
 	elemDetails, exists := d.elementMap[elementToMakeCurrently]
 	if !exists || len(elemDetails.Recipes) == 0 {
@@ -79,13 +71,13 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 		if !p1Exists || !p2Exists {
 			continue
 		}
-		if elemParent1.Tier > productTier || elemParent2.Tier > productTier {
+		if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
 			continue
 		}
 
 		currentRecipeSteps[elementToMakeCurrently] = []string{parent1Name, parent2Name}
 
-		parent1OK := d.dfsRecursive(parent1Name, currentRecipeSteps, pathCycleDetector)
+		parent1OK := d.dfsRecursive(parent1Name, currentRecipeSteps)
 		if !parent1OK {
 			delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack
 			continue                                           // Coba resep lain
@@ -96,7 +88,7 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
         }
 
 
-		parent2OK := d.dfsRecursive(parent2Name, currentRecipeSteps, pathCycleDetector)
+		parent2OK := d.dfsRecursive(parent2Name, currentRecipeSteps)
 		if !parent2OK {
 			delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack
 			continue                                           // Coba resep lain
@@ -117,8 +109,6 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 			}
 		}
 		
-		// delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack, coba resep lain
-
         if elementToMakeCurrently == d.initialTarget && len(*d.allFoundRecipes) >= d.maxRecipes {
             break
         }
