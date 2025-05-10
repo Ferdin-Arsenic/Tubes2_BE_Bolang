@@ -13,18 +13,6 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-// Element struct to store element data
-type Element struct {
-	Name    string     `json:"name"`
-	Recipes [][]string `json:"recipes"`
-	Tier    int        `json:"tier"`
-}
-
-// Basic elements in Little Alchemy 2
-var basicElements = []string{
-	"air", "earth", "fire", "water",
-}
-
 func Scraping() {
 	baseURL := "https://little-alchemy.fandom.com"
 	listURL := baseURL + "/wiki/Elements_(Little_Alchemy_2)"
@@ -569,17 +557,6 @@ func calcTiersFix(elements []Element) {
 	fmt.Printf("\nTier calculation completed in %d iterations\n", iteration)
 	fmt.Printf("Elements with missing recipes: %d\n", missingRecipesCount)
 	fmt.Printf("Elements with unresolvable tiers: %d\n", unresolvableCount)
-}
-
-// Helper to check if element name is a basic element
-func isBasicElement(name string) bool {
-	lowerName := strings.ToLower(name)
-	for _, basic := range basicElements {
-		if basic == lowerName {
-			return true
-		}
-	}
-	return false
 }
 
 // Helper to count elements that have been updated (tier != -1)

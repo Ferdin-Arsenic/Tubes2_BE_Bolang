@@ -22,29 +22,49 @@ type TreeNode struct {
 var basicElements = []string{"air", "earth", "fire", "water"}
 
 func buildFullTree(name string, elementMap map[string]Element, visited map[string]bool) TreeNode {
+	// Buat node untuk elemen saat ini (capitalize untuk tampilan)
 	node := TreeNode{Name: capitalize(name)}
 
+	// Jika sudah basic element atau sudah pernah dikunjungi → tidak perlu lanjut
 	if isBasicElement(name) || visited[name] {
 		return node
 	}
 
+	// Tandai sudah dikunjungi (hindari loop)
 	visited[name] = true
 
+	// Ambil data element dari map
 	elem, exists := elementMap[name]
 	if !exists || len(elem.Recipes) == 0 {
+		// Jika elemen tidak ditemukan atau tidak punya resep → return node kosong
 		return node
 	}
 
+	// Iterasi setiap resep yang menghasilkan elemen ini
 	for _, recipe := range elem.Recipes {
 		if len(recipe) != 2 {
+
 			continue
 		}
-		childNode := TreeNode{
-			Name: fmt.Sprintf("%s + %s", capitalize(recipe[0]), capitalize(recipe[1])),
-			Children: []TreeNode{
-				buildFullTree(strings.ToLower(recipe[0]), elementMap, visited),
-				buildFullTree(strings.ToLower(recipe[1]), elementMap, visited),
-			},
+		ingredientA := strings.ToLower(recipe[0])
+		ingredientB := strings.ToLower(recipe[1])
+
+		var childNode TreeNode
+		if ingredientA == ingredientB {
+			childNode = TreeNode{
+				Name: capitalize(recipe[0]),
+				Children: []TreeNode{
+					buildFullTree(ingredientA, elementMap, visited),
+				},
+			}
+		} else {
+			childNode = TreeNode{
+				Name: fmt.Sprintf("%s + %s", capitalize(recipe[0]), capitalize(recipe[1])),
+				Children: []TreeNode{
+					buildFullTree(ingredientA, elementMap, visited),
+					buildFullTree(ingredientB, elementMap, visited),
+				},
+			}
 		}
 		node.Children = append(node.Children, childNode)
 	}
@@ -73,4 +93,46 @@ func capitalize(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func buildTreeFromPath(path []string, elementMap map[string]Element) TreeNode {
+	if len(path) == 0 {
+		return TreeNode{}
+	}
+
+	name := path[len(path)-1]
+	node := TreeNode{Name: capitalize(name)}
+
+	// Kalau hanya 1 elemen → ini basic element
+	if len(path) == 1 {
+		return node
+	}
+
+	// ambil parent
+	parent := path[len(path)-2]
+
+	// cari recipe parent → name
+	recipes := elementMap[name].Recipes
+	for _, recipe := range recipes {
+		if len(recipe) != 2 {
+			continue
+		}
+		a := strings.ToLower(recipe[0])
+		b := strings.ToLower(recipe[1])
+
+		// cek apakah recipe cocok dengan parent
+		if a == parent || b == parent {
+			// buat child node dengan kombinasi
+			childNode := TreeNode{
+				Name: fmt.Sprintf("%s + %s", capitalize(recipe[0]), capitalize(recipe[1])),
+				Children: []TreeNode{
+					buildTreeFromPath(path[:len(path)-1], elementMap),
+				},
+			}
+			node.Children = append(node.Children, childNode)
+			break // asumsi 1 recipe yang cocok
+		}
+	}
+
+	return node
 }

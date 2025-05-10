@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"strings"
 	"sync"
-	"log"
 )
 
-func main(){
+func main() {
 	data, err := ioutil.ReadFile("elements.json")
-	if err != nil {log.Fatalf("Failed to read elements.json: %v", err)}
+	if err != nil {
+		log.Fatalf("Failed to read elements.json: %v", err)
+	}
 
 	var elements []Element
 	if err := json.Unmarshal(data, &elements); err != nil {
@@ -33,19 +35,25 @@ func main(){
 	var mode int
 	fmt.Scanln(&mode)
 
-	fmt.Print("Pilih algoritma (1 = bfs, 2 = dfs): ")
+	// 🔥 TAMBahkan opsi algoritma ke-3 (bidirectional)
+	fmt.Print("Pilih algoritma (1 = bfs, 2 = dfs, 3 = bidirectional): ")
 	var algo int
 	fmt.Scanln(&algo)
-
 
 	var path []string
 	if mode == 1 {
 		// ===== Shortest recipe mode =====
 		if algo == 1 {
 			path = bfsShortest(elementMap, target)
-		} else {
-			path = dfsMultiple(elementMap, basicElements,target, 1)[0]
+		} else if algo == 2 {
+			paths := dfsMultiple(elementMap, basicElements, target, 1)
+			if len(paths) > 0 {
+				path = paths[0]
+			}
+		} else if algo == 3 { // 🔥 INTEGRASI bidirectional
+			path = bidirectionalSearch(elementMap, target)
 		}
+
 		if len(path) == 0 {
 			fmt.Println("Tidak ditemukan jalur ke", target)
 			return
@@ -59,7 +67,7 @@ func main(){
 
 		writeJSON([]TreeNode{tree}, target+"_shortest.json")
 		fmt.Println("Tree saved to", target+"_shortest.json")
-	
+
 	} else if mode == 2 {
 		var paths [][]string
 		var maxRecipe int
@@ -67,18 +75,18 @@ func main(){
 		fmt.Scanln(&maxRecipe)
 
 		if algo == 1 {
-			paths = bfsMultiple(elementMap, 
-				target, maxRecipe)
-		
-		} else {
-			paths = dfsMultiple(elementMap, basicElements,target, maxRecipe)
+			paths = bfsMultiple(elementMap, target, maxRecipe)
+		} else if algo == 2 {
+			paths = dfsMultiple(elementMap, basicElements, target, maxRecipe)
+		} else if algo == 3 {
+			paths = bidirectionalMultiple(elementMap, target, maxRecipe) // 🔥 pakai bidirectionalMultiple
 		}
+
 		fmt.Println("Ditemukan", len(paths), "recipe")
 		fmt.Println("Path yang ditemukan:")
 		for _, path := range paths {
 			fmt.Println(path)
 		}
-
 
 		var wg sync.WaitGroup
 		treeChan := make(chan TreeNode, len(paths))
