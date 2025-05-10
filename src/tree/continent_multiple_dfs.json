@@ -1,15 +1,15 @@
 [
   {
-    "name": "Energy",
+    "name": "Continent",
     "children": [
       {
-        "name": "Fire + Fire",
+        "name": "Earth + Land",
         "children": [
           {
-            "name": "Fire"
+            "name": "Earth"
           },
           {
-            "name": "Fire"
+            "name": "Land"
           }
         ]
       }
@@ -17,16 +17,16 @@
     "highlight": true
   },
   {
-    "name": "Energy",
+    "name": "Continent",
     "children": [
       {
-        "name": "Air + Fire",
+        "name": "Land + Land",
         "children": [
           {
-            "name": "Air"
+            "name": "Land"
           },
           {
-            "name": "Fire"
+            "name": "Land"
           }
         ]
       }

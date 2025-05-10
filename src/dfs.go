@@ -12,7 +12,12 @@ type DFSData struct {
 func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []map[string][]string {
 
 	allFoundRecipes := make([]map[string][]string, 0)
-	
+
+	 if isBasicElement(target) {
+		emptyRecipe := make(map[string][]string)
+		allFoundRecipes = append(allFoundRecipes, emptyRecipe)
+        return allFoundRecipes
+    }	
 	// Map untuk mendeteksi cycle
 	pathCycleDetector := make(map[string]bool)
 
@@ -33,35 +38,32 @@ func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 }
 
 // Fungsi pembantu rekursif untuk DFS backward
-func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps map[string][]string, pathCycleDetector map[string]bool,) {
+func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps map[string][]string, pathCycleDetector map[string]bool) bool {
 	if len(*d.allFoundRecipes) >= d.maxRecipes {
-		return
+		return false 
 	}
 
-	// Base case: Jika elemen saat ini adalah elemen dasar, cabang ini berhasil.
 	if isBasicElement(elementToMakeCurrently) {
-		return
+		return true
 	}
 
 	if pathCycleDetector[elementToMakeCurrently] {
-		return // Siklus terdeteksi, jalur ini tidak valid
+		return false // Siklus
 	}
 	pathCycleDetector[elementToMakeCurrently] = true
 	defer delete(pathCycleDetector, elementToMakeCurrently)
 
 	elemDetails, exists := d.elementMap[elementToMakeCurrently]
 	if !exists || len(elemDetails.Recipes) == 0 {
-		// Tidak ada resep untuk , jalur ini salah.
-		return
+		return false // tidak ada resep
 	}
 
 	productTier := elemDetails.Tier
+	var madeSuccessfully bool = false // Berhasil dibuat dgn setidaknya satu cara
 
-	// Coba setiap resep yang tersedia untuk membuat elementToMakeCurrently
-	for _, recipePair := range elemDetails.Recipes { // recipePair adalah [P1, P2]
-		if d.maxRecipes > 0 && len(*d.allFoundRecipes) >= d.maxRecipes {
-			return
-		}
+	for _, recipePair := range elemDetails.Recipes {
+		if d.maxRecipes > 0 && len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {}
+
 
 		if len(recipePair) != 2 {
 			continue
@@ -69,58 +71,56 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 		parent1Name := strings.ToLower(recipePair[0])
 		parent2Name := strings.ToLower(recipePair[1])
 
-		// Validasi Tier
 		elemParent1, p1Exists := d.elementMap[parent1Name]
 		elemParent2, p2Exists := d.elementMap[parent2Name]
 
-		if !p1Exists || !p2Exists { // Ngecek bahan ada atau tidak
+		if !p1Exists || !p2Exists {
 			continue
 		}
 		if elemParent1.Tier > productTier || elemParent2.Tier > productTier {
 			continue
 		}
 
-		// Resep Valid, catat
 		currentRecipeSteps[elementToMakeCurrently] = []string{parent1Name, parent2Name}
 
-		d.dfsRecursive(parent1Name, currentRecipeSteps, pathCycleDetector)
-		
-		// Cek apakah parent1 berhasil dibuat (jika tidak dasar, harus ada di currentRecipeSteps)
-		if !isBasicElement(parent1Name) && currentRecipeSteps[parent1Name] == nil {
-			delete(currentRecipeSteps, elementToMakeCurrently)
-			continue
+		parent1OK := d.dfsRecursive(parent1Name, currentRecipeSteps, pathCycleDetector)
+		if !parent1OK {
+			delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack
+			continue                                           // Coba resep lain
 		}
-        if len(*d.allFoundRecipes) >= d.maxRecipes {
-            continue
+        if len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {
+             delete(currentRecipeSteps, elementToMakeCurrently)
+             madeSuccessfully = true 
+             continue
         }
 
 
-		// Rekursi untuk parent2
-		d.dfsRecursive(parent2Name, currentRecipeSteps, pathCycleDetector)
-
-		if !isBasicElement(parent2Name) && currentRecipeSteps[parent2Name] == nil {
-			delete(currentRecipeSteps, elementToMakeCurrently)
-			continue
+		parent2OK := d.dfsRecursive(parent2Name, currentRecipeSteps, pathCycleDetector)
+		if !parent2OK {
+			delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack
+			continue                                           // Coba resep lain
 		}
-        if len(*d.allFoundRecipes) >= d.maxRecipes {
-            continue
-        }
+
+		// Jika sampai sini, kedua parent OK, jadi element berhasil dibuat dengan resep ini
+		madeSuccessfully = true
 
 		if elementToMakeCurrently == d.initialTarget {
-			if len(*d.allFoundRecipes) >= d.maxRecipes {
-            	continue
-        	}
-			// Copy currentRecipeSteps agar tidak termodifikasi
-			finalRecipe := make(map[string][]string)
-			for key, val := range currentRecipeSteps {
-				parentsCopy := make([]string, len(val))
-				copy(parentsCopy, val)
-				finalRecipe[key] = parentsCopy
+			if d.maxRecipes <= 0 || len(*d.allFoundRecipes) < d.maxRecipes {
+				finalRecipe := make(map[string][]string)
+				for key, val := range currentRecipeSteps {
+					parentsCopy := make([]string, len(val))
+					copy(parentsCopy, val)
+					finalRecipe[key] = parentsCopy
+				}
+				*d.allFoundRecipes = append(*d.allFoundRecipes, finalRecipe)
 			}
-			*d.allFoundRecipes = append(*d.allFoundRecipes, finalRecipe)
 		}
 		
-		delete(currentRecipeSteps, elementToMakeCurrently)
+		delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack, coba resep lain
 
+        if elementToMakeCurrently == d.initialTarget && len(*d.allFoundRecipes) >= d.maxRecipes {
+            break
+        }
 	}
+	return madeSuccessfully
 }

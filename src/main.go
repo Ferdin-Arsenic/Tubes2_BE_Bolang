@@ -80,6 +80,10 @@ func main() {
 			return
 		}
 
+		for i := range len(recipePlans) {
+			recipePrinter(recipePlans[i]) 
+		}
+
 		var wg sync.WaitGroup
 		treeChan := make(chan TreeNode, len(recipePlans))
 
@@ -115,4 +119,20 @@ func main() {
 	} else {
 		fmt.Println("Mode tidak dikenali.")
 	}
+}
+
+func recipePrinter(recipe map[string][]string) {
+    // Enhanced printing with better formatting
+    fmt.Println("Printing recipe:")
+    
+    for element, ingredients := range recipe {
+        fmt.Printf("  To make %s, combine:\n", element)
+        
+        if len(ingredients) == 2 {
+            fmt.Printf("    - %s\n    - %s\n", ingredients[0], ingredients[1])
+        } else {
+            fmt.Println("    (Invalid recipe format)")
+        }
+    }
+    fmt.Println()  // Empty line after recipe
 }

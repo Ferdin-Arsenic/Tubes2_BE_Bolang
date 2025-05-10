@@ -1,15 +1,15 @@
 [
   {
-    "name": "Energy",
+    "name": "Brick",
     "children": [
       {
-        "name": "Air + Fire",
+        "name": "Fire + Mud",
         "children": [
           {
-            "name": "Air"
+            "name": "Fire"
           },
           {
-            "name": "Fire"
+            "name": "Mud"
           }
         ]
       }
