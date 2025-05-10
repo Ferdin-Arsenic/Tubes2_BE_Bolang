@@ -13,19 +13,31 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+// Element struct to store element data
+type Element struct {
+	Name    string     `json:"name"`
+	Recipes [][]string `json:"recipes"`
+	Tier    int        `json:"tier"`
+}
+
+// Basic elements in Little Alchemy 2
+var basicElements = []string{
+	"air", "earth", "fire", "water",
+}
+
 func Scraping() {
 	baseURL := "https://little-alchemy.fandom.com"
 	listURL := baseURL + "/wiki/Elements_(Little_Alchemy_2)"
 
 	fmt.Println("Starting Little Alchemy 2 recipe scraper...")
 
-	// 1. Ambil daftar elemen dari wiki
+	// 1. Get list of elements from wiki
 	elementsList, err := getElementsList(listURL)
 	if err != nil {
 		log.Fatalf("Failed to get elements list: %v", err)
 	}
 
-	// 2. Pastikan elemen dasar ada & unik
+	// 2. Ensure basic elements are included & unique
 	seen := map[string]bool{}
 	for _, n := range elementsList {
 		seen[strings.ToLower(n)] = true
@@ -42,7 +54,7 @@ func Scraping() {
 		fmt.Println("Sample:", elementsList[:min(5, len(elementsList))])
 	}
 
-	// 3. Scrape recipes secara concurrent
+	// 3. Scrape recipes concurrently
 	var elements []Element
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 3)
@@ -57,20 +69,20 @@ func Scraping() {
 
 			url := baseURL + "/wiki/" + strings.ReplaceAll(name, " ", "_")
 			fmt.Printf("Scraping: %s\n", name)
-			recs, err := scrapeRecipes(url, name)
+			recs, err := scrapeRecipesLA2Only(url, name)
 			if err != nil {
 				log.Printf("  error on %s: %v\n", name, err)
 				return
 			}
 
-			// Normalisasi nama elemen dalam resep
+			// Normalize element names in recipes
 			normalizedRecs := normalizeRecipes(recs)
 
 			mu.Lock()
 			elements = append(elements, Element{
 				Name:    name,
 				Recipes: normalizedRecs,
-				Tier:    -1, // nanti diisi
+				Tier:    -1, // will be filled later
 			})
 			mu.Unlock()
 
@@ -102,30 +114,30 @@ func Scraping() {
 		fmt.Printf("%s: %v\n", b, found)
 	}
 
-	// 4. Hitung Tier dengan algoritma yang diperbaiki
+	// 4. Calculate Tiers with improved algorithm
 	calcTiersFix(elements)
 
-	// 5. Simpan JSON dengan field Tier
+	// 5. Save JSON with Tier field
 	outFile := "elements.json"
 	if err := saveJSON(elements, outFile); err != nil {
 		log.Fatalf("Failed saving %s: %v", outFile, err)
 	}
 	fmt.Printf("Done! Data with tiers in %s\n", outFile)
 
-	// 6. Tambahkan analisis tier
+	// 6. Add tier analysis
 	analyzeTiers(elements)
 }
 
-// Fungsi tambahan untuk normalisasi resep
+// Function to normalize recipes
 func normalizeRecipes(recipes [][]string) [][]string {
 	normalized := make([][]string, 0, len(recipes))
 	for _, recipe := range recipes {
 		if len(recipe) == 2 {
-			// Bersihkan dan normalisasi nama elemen
+			// Clean and normalize element names
 			a := strings.TrimSpace(recipe[0])
 			b := strings.TrimSpace(recipe[1])
 
-			// Hilangkan karakter khusus dan extra spaces
+			// Remove special characters and extra spaces
 			a = cleanElementName(a)
 			b = cleanElementName(b)
 
@@ -137,9 +149,9 @@ func normalizeRecipes(recipes [][]string) [][]string {
 	return normalized
 }
 
-// Fungsi untuk membersihkan nama elemen
+// Function to clean element name
 func cleanElementName(name string) string {
-	// Hapus karakter khusus dan text dalam kurung
+	// Remove special characters and text in parentheses
 	name = strings.Split(name, "(")[0]
 	name = strings.TrimSpace(name)
 	return name
@@ -188,7 +200,8 @@ func getElementsList(url string) ([]string, error) {
 	return elems, nil
 }
 
-func scrapeRecipes(url string, targetElement string) ([][]string, error) {
+// New function that only scrapes Little Alchemy 2 recipes
+func scrapeRecipesLA2Only(url string, targetElement string) ([][]string, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -210,88 +223,77 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 	recipes := make([][]string, 0)
 	seen := make(map[string]bool)
 
-	// Track sections by headers to determine if we're in a "Used in" section or recipe section
-	var currentSection string
-	recipeSection := false
-	usedInSection := false
+	// Track if we're in Little Alchemy 2 section
+	// Track if we're in Little Alchemy 2 section
+	inLA2Section := false
+	inUsedInSection := false
 
-	// First, map out the sections on the page
+	// Identify sections
 	doc.Find("h1, h2, h3, h4").Each(func(_ int, h *goquery.Selection) {
 		headerText := strings.ToLower(strings.TrimSpace(h.Text()))
 
-		// Set flags based on section headers
-		if strings.Contains(headerText, "used in") {
-			currentSection = "used_in"
-			usedInSection = true
-			recipeSection = false
-			fmt.Printf("Found 'Used in' section for: %s\n", targetElement)
-		} else if strings.Contains(headerText, "recipe") ||
-			strings.Contains(headerText, "how to make") ||
-			strings.Contains(headerText, "little alchemy") {
-			currentSection = "recipe"
-			recipeSection = true
-			usedInSection = false
-			fmt.Printf("Found recipe section for: %s\n", targetElement)
+		if strings.Contains(headerText, "little alchemy 2") {
+			inLA2Section = true
+			inUsedInSection = false
+			fmt.Printf("Found Little Alchemy 2 section for: %s\n", targetElement)
+		} else if strings.Contains(headerText, "little alchemy") && !strings.Contains(headerText, "2") {
+			inLA2Section = false
+			fmt.Printf("Found Little Alchemy 1 section for: %s (ignoring)\n", targetElement)
+		} else if strings.Contains(headerText, "used in") {
+			inUsedInSection = true
+			fmt.Printf("Found 'Used in' section for: %s (ignoring)\n", targetElement)
+		} else {
+			// Reset flag if new unrelated header
+			inLA2Section = false
+			inUsedInSection = false
 		}
 	})
 
-	// 1. Process tables with recipes - skip if in "Used in" section
-	doc.Find("table.wikitable, table.article-table").Each(func(_ int, table *goquery.Selection) {
-		// Check if this table is in a "Used in" section
-		inUsedSection := false
+	// Process tables or lists, but only if inLA2Section == true
+	doc.Find("div.mw-parser-output > *").Each(func(_ int, s *goquery.Selection) {
+		if inLA2Section && !inUsedInSection {
+			if s.Is("table") {
+				s.Find("tr").Each(func(_ int, row *goquery.Selection) {
+					cols := row.Find("td")
+					if cols.Length() >= 3 {
+						result := strings.TrimSpace(cols.Eq(2).Text())
+						if strings.EqualFold(result, targetElement) {
+							a := strings.TrimSpace(cols.Eq(0).Text())
+							b := strings.TrimSpace(cols.Eq(1).Text())
+							addRecipe(&recipes, seen, a, b)
+						}
+					}
+				})
+			}
 
-		// Look at previous siblings up to a header
-		prev := table.Prev()
-		for prev.Length() > 0 && !prev.Is("h1, h2, h3, h4") {
+			if s.Is("ul") {
+				s.Find("li").Each(func(_ int, li *goquery.Selection) {
+					text := li.Text()
+					if strings.Contains(text, "+") || strings.Contains(text, "→") || strings.Contains(text, "=") {
+						parseRecipeFromText(&recipes, seen, text, targetElement)
+					}
+				})
+			}
+		}
+	})
+
+	// 2. Process dedicated Little Alchemy 2 lists
+	doc.Find("div.mw-parser-output > *").Each(func(i int, s *goquery.Selection) {
+		// Check if this is under Little Alchemy 2 section
+		var inLA2Context bool
+
+		// Look backward for the closest heading
+		prev := s.Prev()
+		for prev.Length() > 0 {
+			if prev.Is("h1, h2, h3, h4") {
+				headerText := strings.ToLower(strings.TrimSpace(prev.Text()))
+				inLA2Context = strings.Contains(headerText, "little alchemy 2")
+				break
+			}
 			prev = prev.Prev()
 		}
 
-		if prev.Length() > 0 {
-			sectionHeader := strings.ToLower(strings.TrimSpace(prev.Text()))
-			if strings.Contains(sectionHeader, "used in") {
-				inUsedSection = true
-			}
-		}
-
-		// If not in a "Used in" section, process the table
-		if !inUsedSection {
-			table.Find("tr").Each(func(_ int, row *goquery.Selection) {
-				cols := row.Find("td")
-
-				// Look for recipes that CREATE our target element
-				if cols.Length() >= 3 {
-					result := strings.TrimSpace(cols.Eq(2).Text())
-					if strings.EqualFold(result, targetElement) {
-						a := strings.TrimSpace(cols.Eq(0).Text())
-						b := strings.TrimSpace(cols.Eq(1).Text())
-						addRecipe(&recipes, seen, a, b)
-					}
-				}
-			})
-		}
-	})
-
-	// 2. Process lists with recipes - use section detection
-	doc.Find("div.mw-parser-output > *").Each(func(i int, s *goquery.Selection) {
-		// Update section context if we hit a heading
-		if s.Is("h1, h2, h3, h4") {
-			headerText := strings.ToLower(strings.TrimSpace(s.Text()))
-
-			if strings.Contains(headerText, "used in") {
-				currentSection = "used_in"
-				usedInSection = true
-				recipeSection = false
-			} else if strings.Contains(headerText, "recipe") ||
-				strings.Contains(headerText, "how to make") ||
-				strings.Contains(headerText, "little alchemy") {
-				currentSection = "recipe"
-				recipeSection = true
-				usedInSection = false
-			}
-		}
-
-		// Only process lists if they're in a recipe section and not in a "Used in" section
-		if !usedInSection && (recipeSection || currentSection == "recipe") && s.Is("ul") {
+		if inLA2Context && s.Is("ul") && !inUsedInSection {
 			s.Find("li").Each(func(_ int, li *goquery.Selection) {
 				text := li.Text()
 				if strings.Contains(text, "→") || strings.Contains(text, "=") || strings.Contains(text, "+") {
@@ -301,67 +303,63 @@ func scrapeRecipes(url string, targetElement string) ([][]string, error) {
 		}
 	})
 
-	// 3. Fallback for Little Alchemy sections specifically
+	// 3. Check for "Little Alchemy 2" text in paragraphs for context
 	if len(recipes) == 0 {
-		doc.Find("h2:contains('Little Alchemy'), h3:contains('Little Alchemy')").Each(func(_ int, hdr *goquery.Selection) {
-			// Skip if this is a "Used in" section
-			headerText := strings.ToLower(strings.TrimSpace(hdr.Text()))
-			if strings.Contains(headerText, "used in") {
-				return
+		inLA2Context := false
+
+		doc.Find("div.mw-parser-output p").Each(func(_ int, p *goquery.Selection) {
+			text := strings.ToLower(p.Text())
+
+			// Check if paragraph mentions Little Alchemy 2
+			if strings.Contains(text, "little alchemy 2") {
+				inLA2Context = true
 			}
 
-			// Process list items after this header but before the next header
-			for section := hdr.Next(); section.Length() > 0 && !section.Is("h2, h3, h4"); section = section.Next() {
-				section.Find("li").Each(func(_ int, li *goquery.Selection) {
-					parseRecipeFromText(&recipes, seen, li.Text(), targetElement)
-				})
+			// If we're in LA2 context and paragraph has recipe indicators
+			if inLA2Context && !inUsedInSection &&
+				(strings.Contains(text, "recipe") || strings.Contains(text, "combine") ||
+					strings.Contains(text, "make") || strings.Contains(text, "create")) {
+				parseRecipeFromText(&recipes, seen, text, targetElement)
 			}
 		})
 	}
 
-	// 4. Special handling for recipe format in text content
+	// 4. If we didn't find specific LA2 recipes but the page is about an LA2 element,
+	// look for generic recipes that might apply to both games
 	if len(recipes) == 0 {
-		doc.Find("div.mw-parser-output p").Each(func(_ int, p *goquery.Selection) {
-			// Skip paragraphs in "Used in" section
-			inUsedSection := false
-			prev := p.Prev()
-			for prev.Length() > 0 && !prev.Is("h1, h2, h3, h4") {
-				prev = prev.Prev()
-			}
+		// Check page title or content indicators to confirm it's about LA2
+		isLA2Page := false
 
-			if prev.Length() > 0 {
-				sectionHeader := strings.ToLower(strings.TrimSpace(prev.Text()))
-				if strings.Contains(sectionHeader, "used in") {
-					inUsedSection = true
-				}
-			}
-
-			if !inUsedSection {
-				text := p.Text()
-				// Look for text patterns indicating recipes
-				if strings.Contains(text, "recipe") || strings.Contains(text, "make") ||
-					strings.Contains(text, "create") || strings.Contains(text, "combine") {
-					parseRecipeFromText(&recipes, seen, text, targetElement)
-				}
+		doc.Find("title, h1.page-header__title").Each(func(_ int, title *goquery.Selection) {
+			if strings.Contains(strings.ToLower(title.Text()), "little alchemy 2") {
+				isLA2Page = true
 			}
 		})
+
+		if isLA2Page {
+			// Get generic recipes as fallback
+			fallbackRecipes := fallbackScrape(doc, targetElement)
+			for _, recipe := range fallbackRecipes {
+				addRecipe(&recipes, seen, recipe[0], recipe[1])
+			}
+		}
 	}
 
 	// Debug info
-	fmt.Printf("Found %d recipes for %s\n", len(recipes), targetElement)
+	fmt.Printf("Found %d Little Alchemy 2 recipes for %s\n", len(recipes), targetElement)
 
 	return recipes, nil
 }
 
 func addRecipe(recipes *[][]string, seen map[string]bool, a, b string) {
-	// Normalisasi dan sort
+	// Normalize and sort
 	a = cleanElementName(a)
 	b = cleanElementName(b)
 	if a == "" || b == "" {
 		return
 	}
 
-	// Sort untuk konsistensi
+	// Sort for consistency
 	if a > b {
 		a, b = b, a
 	}
@@ -382,7 +380,7 @@ func parseRecipeFromText(recipes *[][]string, seen map[string]bool, text, target
 	} else if strings.Contains(text, "=") {
 		parts = strings.Split(text, "=")
 	} else if strings.Contains(text, "+") {
-		// tambahkan ini: jika dalam list "Little Alchemy 2" ada A + B (tanpa →), asumsikan ini resep valid
+		// add this: if in list "Little Alchemy 2" has A + B (without →), assume it's a valid recipe
 		parts = []string{text, targetElement}
 	} else {
 		return
@@ -405,69 +403,66 @@ func parseRecipeFromText(recipes *[][]string, seen map[string]bool, text, target
 	}
 }
 
-func fallbackScrape(doc *goquery.Document) [][]string {
+func fallbackScrape(doc *goquery.Document, targetElement string) [][]string {
 	recipes := make([][]string, 0)
 	seen := make(map[string]bool)
 
-	// Tabel umum
+	// Generic tables - only use if page context confirms LA2
 	doc.Find("table.wikitable, table.article-table").Each(func(_ int, table *goquery.Selection) {
-		table.Find("tr").Each(func(_ int, row *goquery.Selection) {
-			cols := row.Find("td")
-			if cols.Length() >= 3 {
-				a := strings.TrimSpace(cols.Eq(0).Text())
-				b := strings.TrimSpace(cols.Eq(1).Text())
-				if a != "" && b != "" {
-					key := strings.ToLower(a + "|" + b)
-					if !seen[key] {
-						recipes = append(recipes, []string{a, b})
-						seen[key] = true
+		// Skip tables in "Used in" sections
+		inUsedSection := false
+		prev := table.Prev()
+		for prev.Length() > 0 && !prev.Is("h1, h2, h3, h4") {
+			prev = prev.Prev()
+		}
+		if prev.Length() > 0 {
+			sectionHeader := strings.ToLower(strings.TrimSpace(prev.Text()))
+			if strings.Contains(sectionHeader, "used in") {
+				inUsedSection = true
+			} else if strings.Contains(sectionHeader, "little alchemy") &&
+				!strings.Contains(sectionHeader, "little alchemy 2") {
+				// Skip LA1 tables
+				inUsedSection = true
+			}
+		}
+
+		if !inUsedSection {
+			table.Find("tr").Each(func(_ int, row *goquery.Selection) {
+				cols := row.Find("td")
+				if cols.Length() >= 3 {
+					result := strings.TrimSpace(cols.Eq(2).Text())
+					if strings.EqualFold(result, targetElement) {
+						a := strings.TrimSpace(cols.Eq(0).Text())
+						b := strings.TrimSpace(cols.Eq(1).Text())
+						key := strings.ToLower(a + "|" + b)
+						if a != "" && b != "" && !seen[key] {
+							recipes = append(recipes, []string{a, b})
+							seen[key] = true
+						}
 					}
 				}
-			}
-		})
-	})
-
-	// List kombinasi
-	doc.Find("div.mw-parser-output ul li").Each(func(_ int, li *goquery.Selection) {
-		text := li.Text()
-		if strings.Contains(text, "→") {
-			text = strings.Split(text, "→")[0]
-		}
-		if strings.Contains(text, "=") {
-			text = strings.Split(text, "=")[0]
-		}
-		if strings.Contains(text, "+") {
-			parts := strings.Split(text, "+")
-			if len(parts) == 2 {
-				a := strings.TrimSpace(parts[0])
-				b := strings.TrimSpace(parts[1])
-				key := strings.ToLower(a + "|" + b)
-				if a != "" && b != "" && !seen[key] {
-					recipes = append(recipes, []string{a, b})
-					seen[key] = true
-				}
-			}
+			})
 		}
 	})
 
 	return recipes
 }
 
-// ================ PERBAIKAN UTAMA ================
-// Algoritma baru untuk menghitung tier
+// ================ MAIN IMPROVEMENTS ================
+// New algorithm to calculate tiers
 func calcTiersFix(elements []Element) {
-	fmt.Println("\n=== Menggunakan algoritma tier yang dioptimalkan ===")
+	fmt.Println("\n=== Using optimized tier algorithm ===")
 
-	// Step 1: Buat beberapa mapping yang diperlukan
-	elementMap := make(map[string]*Element)       // nama elemen -> pointer ke Element
-	elementRecipes := make(map[string][][]string) // nama elemen -> resep-resepnya
+	// Step 1: Create required mappings
+	elementMap := make(map[string]*Element)       // element name -> Element pointer
+	elementRecipes := make(map[string][][]string) // element name -> its recipes
 
-	// Konversi semua nama elemen ke lowercase untuk konsistensi
+	// Convert all element names to lowercase for consistency
 	for i := range elements {
 		lowerName := strings.ToLower(elements[i].Name)
 		elementMap[lowerName] = &elements[i]
 
-		// Buat salinan resep dengan nama yang dinormalisasi
+		// Create copy of recipes with normalized names
 		var normalizedRecipes [][]string
 		for _, recipe := range elements[i].Recipes {
 			if len(recipe) == 2 {
@@ -479,7 +474,7 @@ func calcTiersFix(elements []Element) {
 		elementRecipes[lowerName] = normalizedRecipes
 	}
 
-	// Step 2: Set tier 0 untuk elemen dasar
+	// Step 2: Set tier 0 for basic elements
 	for _, basic := range basicElements {
 		if elem, exists := elementMap[basic]; exists {
 			elem.Tier = 0
@@ -488,8 +483,8 @@ func calcTiersFix(elements []Element) {
 		}
 	}
 
-	// Step 3: Buat dependency graph untuk menentukan urutan penghitungan
-	dependencies := make(map[string]map[string]bool) // elemen -> {dependencies}
+	// Step 3: Create dependency graph to determine calculation order
+	dependencies := make(map[string]map[string]bool) // element -> {dependencies}
 	for name, recipes := range elementRecipes {
 		deps := make(map[string]bool)
 		for _, recipe := range recipes {
@@ -501,29 +496,29 @@ func calcTiersFix(elements []Element) {
 		dependencies[name] = deps
 	}
 
-	// Step 4: Iterasi untuk menghitung tier - menggunakan pendekatan dynamic programming
-	// maxIterations untuk menghindari infinite loop jika ada cyclic dependency
+	// Step 4: Iterate to calculate tiers - using dynamic programming approach
+	// maxIterations to avoid infinite loop if there are cyclic dependencies
 	changed := true
 	iteration := 0
-	maxIterations := 100 // Jumlah maksimum iterasi untuk menghindari infinite loop
+	maxIterations := 100 // Maximum iterations to avoid infinite loop
 
 	for changed && iteration < maxIterations {
 		changed = false
 		iteration++
 
 		for elemName, elem := range elementMap {
-			// Skip elemen yang sudah memiliki tier atau tidak memiliki resep
+			// Skip elements that already have a tier or don't have recipes
 			if elem.Tier != -1 || len(elementRecipes[elemName]) == 0 {
 				continue
 			}
 
-			// Untuk setiap resep, cek apakah semua dependencies sudah memiliki tier
+			// For each recipe, check if all dependencies have tiers
 			for _, recipe := range elementRecipes[elemName] {
 				if len(recipe) != 2 {
 					continue
 				}
 
-				// Cari tier maksimum dari bahan resep
+				// Find maximum tier from recipe ingredients
 				maxIngredientTier := -1
 				allIngredientsHaveTier := true
 
@@ -538,11 +533,11 @@ func calcTiersFix(elements []Element) {
 					}
 				}
 
-				// Jika semua ingredients sudah punya tier, hitung tier elemen ini
+				// If all ingredients have a tier, calculate this element's tier
 				if allIngredientsHaveTier {
 					elem.Tier = maxIngredientTier + 1
 					changed = true
-					break // Lanjut ke elemen berikutnya
+					break // Go to next element
 				}
 			}
 		}
@@ -550,22 +545,22 @@ func calcTiersFix(elements []Element) {
 		fmt.Printf("Iteration %d: Updated %d elements\n", iteration, countUpdatedElements(elements))
 	}
 
-	// Step 5: Set tier untuk elemen tanpa resep (kecuali elemen dasar)
-	// Elemen tanpa resep bisa jadi merupakan elemen dasar tambahan atau elemen final
+	// Step 5: Set tier for elements without recipes (except basic elements)
+	// Elements without recipes might be additional basic elements or final elements
 	missingRecipesCount := 0
 	for _, elem := range elements {
 		if elem.Tier == -1 && len(elem.Recipes) == 0 && !isBasicElement(elem.Name) {
-			// Elemen tanpa resep yang bukan elemen dasar, set tier ke 999 sebagai penanda
+			// Elements without recipes that aren't basic elements, set tier to 999 as marker
 			elem.Tier = 999
 			missingRecipesCount++
 		}
 	}
 
-	// Step 6: Set tier elemen lain yang masih -1 ke 998 untuk menandai bahwa ada masalah
+	// Step 6: Set tier for other elements still at -1 to 998 to mark a problem
 	unresolvableCount := 0
 	for _, elem := range elements {
 		if elem.Tier == -1 {
-			elem.Tier = 998 // Tidak bisa menentukan tier
+			elem.Tier = 998 // Can't determine tier
 			unresolvableCount++
 		}
 	}
@@ -576,7 +571,18 @@ func calcTiersFix(elements []Element) {
 	fmt.Printf("Elements with unresolvable tiers: %d\n", unresolvableCount)
 }
 
-// Helper untuk menghitung jumlah elemen yang sudah diupdate (tier != -1)
+// Helper to check if element name is a basic element
+func isBasicElement(name string) bool {
+	lowerName := strings.ToLower(name)
+	for _, basic := range basicElements {
+		if basic == lowerName {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper to count elements that have been updated (tier != -1)
 func countUpdatedElements(elements []Element) int {
 	count := 0
 	for _, e := range elements {
@@ -587,7 +593,7 @@ func countUpdatedElements(elements []Element) int {
 	return count
 }
 
-// Fungsi untuk menganalisis distribusi tier
+// Function to analyze tier distribution
 func analyzeTiers(elements []Element) {
 	// Counting tiers
 	tierCounts := make(map[int]int)
@@ -602,7 +608,7 @@ func analyzeTiers(elements []Element) {
 	// Sort and print tier counts
 	fmt.Println("Tier distribution:")
 
-	// Pertama cetak tier normal (0-20)
+	// First print normal tiers (0-20)
 	totalNormalTiers := 0
 	for t := 0; t <= 20; t++ {
 		if count, ok := tierCounts[t]; ok && count > 0 {
@@ -611,7 +617,7 @@ func analyzeTiers(elements []Element) {
 		}
 	}
 
-	// Kemudian cetak tier khusus
+	// Then print special tiers
 	if count, ok := tierCounts[-1]; ok && count > 0 {
 		fmt.Printf("  Tier -1 (unprocessed): %d elements\n", count)
 	}
@@ -625,7 +631,7 @@ func analyzeTiers(elements []Element) {
 	fmt.Printf("\nElements with normal tiers (0-20): %d (%.1f%%)\n",
 		totalNormalTiers, float64(totalNormalTiers)/float64(len(elements))*100)
 
-	// Sample tiap kategori
+	// Sample each category
 	categories := []struct {
 		name string
 		tier int
@@ -661,7 +667,7 @@ func analyzeTiers(elements []Element) {
 		}
 	}
 
-	// Khusus untuk elemen tier 1, tampilkan semua
+	// Specifically for tier 1 elements, show all
 	fmt.Println("\nAll Tier 1 elements:")
 	for _, elem := range elements {
 		if elem.Tier == 1 {
@@ -702,7 +708,7 @@ func max(a, b int) int {
 	return b
 }
 
-// Fungsi untuk mengecek apakah slice string mengandung string tertentu
+// Function to check if a string slice contains a specific string
 func contains(slice []string, str string) bool {
 	for _, s := range slice {
 		if s == str {
