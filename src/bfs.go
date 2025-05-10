@@ -1,6 +1,11 @@
 package main
 
-import "strings"
+import (
+	"strings"
+	"log"
+	"github.com/gorilla/websocket"
+	"time"
+)
 
 func bfsShortest(elementMap map[string]Element, target string) []string {
 	queue := [][]string{}
@@ -42,7 +47,7 @@ func bfsShortest(elementMap map[string]Element, target string) []string {
 	return nil
 }
 
-func bfsMultiple(elementMap map[string]Element, target string, maxRecipe int) [][]string {
+func BfsMultiple(elementMap map[string]Element, target string, maxRecipe int, conn *websocket.Conn) [][]string {
 	queue := [][]string{}
 	visited := make(map[string]int)
 	var results [][]string
@@ -63,6 +68,20 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipe int) []
 
 		if node == target {
 			results = append(results, path)
+
+			visitedTree := make(map[string]bool)
+			tree := buildFullTree(target, elementMap, visitedTree)
+			tree.Highlight = true
+			time.Sleep(time.Second)
+
+
+			err := conn.WriteJSON(map[string]interface{}{
+				"treeData": []TreeNode{tree},
+			})
+			if err != nil {
+				log.Printf("Error sending live tree: %v", err)
+			}
+
 			continue
 		}
 
