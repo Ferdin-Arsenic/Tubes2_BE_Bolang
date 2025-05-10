@@ -2,9 +2,12 @@ package main
 
 import (
 	"strings"
-	"log"
 	"github.com/gorilla/websocket"
 	"time"
+	"fmt"
+	"encoding/json"
+	"log"
+	"sync"
 )
 
 func bfsShortest(elementMap map[string]Element, target string) []string {
@@ -47,10 +50,11 @@ func bfsShortest(elementMap map[string]Element, target string) []string {
 	return nil
 }
 
-func BfsMultiple(elementMap map[string]Element, target string, maxRecipe int, conn *websocket.Conn) [][]string {
+func BfsMultiple(elementMap map[string]Element, target string, maxRecipe int, conn *websocket.Conn) int {
 	queue := [][]string{}
 	visited := make(map[string]int)
 	var results [][]string
+	nodeVisited := 0
 
 	for _, basic := range basicElements {
 		queue = append(queue, []string{basic})
@@ -65,23 +69,10 @@ func BfsMultiple(elementMap map[string]Element, target string, maxRecipe int, co
 			continue
 		}
 		visited[node]++
+		nodeVisited++
 
 		if node == target {
 			results = append(results, path)
-
-			visitedTree := make(map[string]bool)
-			tree := buildFullTree(target, elementMap, visitedTree)
-			tree.Highlight = true
-			time.Sleep(time.Second)
-
-
-			err := conn.WriteJSON(map[string]interface{}{
-				"treeData": []TreeNode{tree},
-			})
-			if err != nil {
-				log.Printf("Error sending live tree: %v", err)
-			}
-
 			continue
 		}
 
@@ -100,5 +91,47 @@ func BfsMultiple(elementMap map[string]Element, target string, maxRecipe int, co
 			}
 		}
 	}
-	return results
+
+	var wg sync.WaitGroup
+	treeChan := make(chan TreeNode, len(results))
+
+	for _, path := range results {
+		wg.Add(1)
+		go func(p []string) {
+			defer wg.Done()
+			visited := make(map[string]bool)
+			tree := buildFullTree(p[len(p)-1], elementMap, visited)
+			tree.Highlight = true
+			treeChan <- tree
+		}(path)
+	}
+
+	go func() {
+		wg.Wait()
+		close(treeChan)
+	}()
+
+	unique := make(map[string]bool)
+
+	for tree := range treeChan {
+		jsonBytes, _ := json.Marshal(tree)
+		key := string(jsonBytes)
+
+		if !unique[key] {
+			unique[key] = true
+			err := conn.WriteJSON(map[string]interface{}{
+				"status":   "Tree Update",
+				"message":  fmt.Sprintf("Streaming %d of %d trees (Nodes visited: %d)", len(unique), len(results), nodeVisited),
+				"treeData": []TreeNode{tree},
+			})
+			if err != nil {
+				log.Printf("Error sending tree: %v", err)
+				break
+			}
+			log.Printf("Sent tree %d of %d (Nodes visited: %d)", len(unique), len(results), nodeVisited)
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	return nodeVisited
 }
