@@ -187,26 +187,27 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		conn.WriteJSON(map[string]interface{}{
+			"status": "Starting BFS",
+			"message": "Initializing search algorithm",
+		})
+
 		start := time.Now()
 		paths := BfsMultiple(elementMap, strings.ToLower(reqData.Target), count, conn)
 		elapsed := time.Since(start)
 		
-		
-
-		
 		err = conn.WriteJSON(map[string]interface{}{
 			"resultInfo": map[string]string{
 				"time": elapsed.String(),
-				"node": fmt.Sprintf("%d", len(paths)),
+				"node": fmt.Sprintf("%d", paths),
 			},
 			"status": "Completed",
 		})
 		if err != nil {
 			log.Printf("Error sending final result: %v", err)
 		}
-
 	} else if reqData.Algorithm == "DFS" {
-		log.Println("DFS algorithm selected")
+
 		count, err := strconv.Atoi(reqData.MaxRecipes)
 		if err != nil {
 			conn.WriteJSON(map[string]interface{}{
@@ -215,19 +216,19 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		conn.WriteJSON(map[string]interface{}{
+			"status": "Starting DFS",
+			"message": "Initializing search algorithm",
+		})
+
 		start := time.Now()
 		paths := DfsMultiple(elementMap, basicElements,strings.ToLower(reqData.Target), count, conn)
 		elapsed := time.Since(start)
 		
-		
-		// err = conn.WriteJSON(map[string]interface{}{
-		// 	"treeData": treeData,
-		// })
-		
 		err = conn.WriteJSON(map[string]interface{}{
 			"resultInfo": map[string]string{
 				"time": elapsed.String(),
-				"node": fmt.Sprintf("%d", len(paths)),
+				"node": fmt.Sprintf("%d", paths),
 			},
 			"status": "Completed",
 		})
