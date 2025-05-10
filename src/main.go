@@ -7,10 +7,11 @@ import (
 	"strings"
 	"sync"
 	"log"
+	"time"
 )
 
 func main() {
-	data, err := ioutil.ReadFile("elements.json")
+	data, err := ioutil.ReadFile("data/elements.json")
 	if err != nil {
 		log.Fatalf("Failed to read elements.json: %v", err)
 	}
@@ -38,26 +39,28 @@ func main() {
 	var algo int
 	fmt.Scanln(&algo)
 
+	startTime := time.Now()
 	if mode == 1 {
-		var singleRecipePlan map[string][]string
+		var recipePlan map[string][]string
 		if algo == 1 {
 			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
 			return
 		} else {
 			foundRecipePlans := dfsMultiple(elementMap, target,  1)
 			if len(foundRecipePlans) > 0 {
-				singleRecipePlan = foundRecipePlans[0]
+				recipePlan = foundRecipePlans[0]
 			}
 		}
 
-		if singleRecipePlan == nil {
+		if recipePlan == nil {
 			fmt.Println("Tidak ditemukan resep untuk", target)
 			return
 		}
 
 		fmt.Println("Resep ditemukan (via DFS):")
 		visited := make(map[string]bool)
-		tree := buildRecipeTree(target, singleRecipePlan, elementMap, visited)
+		memoCache := make(map[string]TreeNode)
+		tree := buildRecipeTree(target, recipePlan, elementMap, visited, memoCache)
 		tree.Highlight = true
 		writeJSON([]TreeNode{tree}, target+"_single_dfs.json")
 		fmt.Println("Tree saved to", target+"_single_dfs.json")
@@ -80,9 +83,9 @@ func main() {
 			return
 		}
 
-		for i := range len(recipePlans) {
-			recipePrinter(recipePlans[i]) 
-		}
+		// for i := range len(recipePlans) {
+		// 	recipePrinter(recipePlans[i]) 
+		// }
 
 		var wg sync.WaitGroup
 		treeChan := make(chan TreeNode, len(recipePlans))
@@ -92,19 +95,18 @@ func main() {
 			go func(p map[string][]string) {
 				defer wg.Done()
 				localVisited := make(map[string]bool)
-				tree := buildRecipeTree(target, p, elementMap, localVisited)
+				memoCache := make(map[string]TreeNode)
+
+				tree := buildRecipeTree(target, p, elementMap, localVisited, memoCache)
 				tree.Highlight = true
 				treeChan <- tree
 			}(plan)
 		}
-
+		fmt.Println("Waktu eksekusi: ", time.Since(startTime))
 		wg.Wait()
 		close(treeChan)
 
 		var allTrees []TreeNode
-		// Deduplikasi tidak lagi diperlukan jika setiap 'plan' unik dan buildRecipeTree menghasilkan tree unik per plan.
-		// Namun, jika 'dfsMultiple' bisa menghasilkan plan identik (meski seharusnya tidak jika logikanya benar),
-		// deduplikasi berdasarkan struktur tree mungkin masih berguna. Untuk saat ini, kita asumsikan plan unik.
 		for t := range treeChan {
 			allTrees = append(allTrees, t)
 		}
