@@ -74,6 +74,11 @@ func main(){
 			paths = dfsMultiple(elementMap, basicElements,target, maxRecipe)
 		}
 		fmt.Println("Ditemukan", len(paths), "recipe")
+		fmt.Println("Path yang ditemukan:")
+		for _, path := range paths {
+			fmt.Println(path)
+		}
+
 
 		var wg sync.WaitGroup
 		treeChan := make(chan TreeNode, len(paths))
