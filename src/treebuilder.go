@@ -71,8 +71,48 @@ func buildFullTree(name string, elementMap map[string]Element, visited map[strin
 	return node
 }
 
+func buildRecipeTree(elementName string, recipeSteps map[string][]string, elementMap map[string]Element, visitedInThisTree map[string]bool, memoizedTrees map[string]TreeNode) TreeNode {
+	if !visitedInThisTree[elementName] {
+		if cachedNode, found := memoizedTrees[elementName]; found {
+			return cachedNode
+		}
+	}
+	
+	node := TreeNode{Name: capitalize(elementName)}
+
+	if isBasicElement(elementName) || visitedInThisTree[elementName] {
+		if isBasicElement(elementName) && !visitedInThisTree[elementName] {
+			memoizedTrees[elementName] = node
+		}
+		return node
+	}
+	visitedInThisTree[elementName] = true
+	defer delete(visitedInThisTree, elementName)
+
+	// Periksa apakah elementName memiliki langkah pembuatan spesifik dalam recipeSteps ini.
+	parentsToUse, partOfThisSpecificRecipe := recipeSteps[elementName]
+
+	if partOfThisSpecificRecipe && len(parentsToUse) == 2 {
+		// Elemen ini dibuat dari 'parentsToUse' dalam konteks resep spesifik ini.
+		parent1 := strings.ToLower(parentsToUse[0])
+		parent2 := strings.ToLower(parentsToUse[1])
+
+		// Buat node untuk kombinasi "Parent1 + Parent2"
+		recipeStepNode := TreeNode{
+			Name: fmt.Sprintf("%s + %s", capitalize(parent1), capitalize(parent2)),
+			Children: []TreeNode{
+				buildRecipeTree(parent1, recipeSteps, elementMap, visitedInThisTree, memoizedTrees),
+				buildRecipeTree(parent2, recipeSteps, elementMap, visitedInThisTree, memoizedTrees),
+			},
+		}
+		node.Children = append(node.Children, recipeStepNode)
+	}
+	memoizedTrees[elementName] = node
+	return node
+}
+
 func writeJSON(data []TreeNode, filename string) {
-	f, _ := os.Create("tree/" + filename)
+	f, _ := os.Create("data/" + filename)
 	defer f.Close()
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
