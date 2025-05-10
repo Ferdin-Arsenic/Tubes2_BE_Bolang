@@ -1,8 +1,13 @@
 package main
 
-import "strings"
+import (
+	"strings"
+	"time"
+	"log"
+	"github.com/gorilla/websocket"
+)
 
-func dfsMultiple(elementMap map[string]Element, basicElements []string, target string, maxPaths int) [][]string {
+func DfsMultiple(elementMap map[string]Element, basicElements []string, target string, maxPaths int, conn *websocket.Conn) [][]string {
 	foundPaths := [][]string{}
 	targetNormalized := strings.ToLower(target)
 
@@ -10,14 +15,14 @@ func dfsMultiple(elementMap map[string]Element, basicElements []string, target s
 		visitedOnCurrentPath := make(map[string]bool)
 		initialPath := []string{startElement}
 
-		dfsHelper(elementMap, startElement, targetNormalized, visitedOnCurrentPath, initialPath, &foundPaths, maxPaths)
+		dfsHelper(elementMap, startElement, targetNormalized, visitedOnCurrentPath, initialPath, &foundPaths, maxPaths, conn)
 		if len(foundPaths) >= maxPaths {break}
 	}
 	return foundPaths
 }
 
 // Recursive DFS helper function
-func dfsHelper(elementMap map[string]Element, currentElement string, targetNode string, visitedOnCurrentPath map[string]bool, currentPathInProgress []string, foundPaths *[][]string, maxPaths int) {
+func dfsHelper(elementMap map[string]Element, currentElement string, targetNode string, visitedOnCurrentPath map[string]bool, currentPathInProgress []string, foundPaths *[][]string, maxPaths int, conn *websocket.Conn) {
 	if len(*foundPaths) >= maxPaths {return}
 
 	currentElementLower := strings.ToLower(currentElement)
@@ -32,6 +37,18 @@ func dfsHelper(elementMap map[string]Element, currentElement string, targetNode 
 		pathCopy := make([]string, len(currentPathInProgress))
 		copy(pathCopy, currentPathInProgress)
 		*foundPaths = append(*foundPaths, pathCopy)
+
+		visitedTree := make(map[string]bool)
+		tree := buildFullTree(targetNode, elementMap, visitedTree)
+		tree.Highlight = true
+
+		time.Sleep(time.Second)
+		err := conn.WriteJSON(map[string]interface{}{
+			"treeData": []TreeNode{tree},
+		})
+		if err != nil {
+			log.Printf("Error sending DFS tree: %v", err)
+		}
 		return
 	}
 
@@ -51,15 +68,11 @@ func dfsHelper(elementMap map[string]Element, currentElement string, targetNode 
 				nextPath := append([]string{}, currentPathInProgress...)
 				nextPath = append(nextPath, potentialNextProduct)
 
-				dfsHelper( elementMap, potentialNextProduct, targetNode, visitedOnCurrentPath, nextPath, foundPaths, maxPaths)
+				dfsHelper( elementMap, potentialNextProduct, targetNode, visitedOnCurrentPath, nextPath, foundPaths, maxPaths, conn)
 
 				if len(*foundPaths) >= maxPaths {return}
 				break
 			}
 		}
 	}
-}
-
-func dfsShortest() []string{
-	return []string{}
 }
