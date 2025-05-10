@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Energy",
+    "children": [
+      {
+        "name": "Air + Fire",
+        "children": [
+          {
+            "name": "Air"
+          },
+          {
+            "name": "Fire"
+          }
+        ]
+      }
+    ],
+    "highlight": true
+  }
+]

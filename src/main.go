@@ -9,9 +9,11 @@ import (
 	"log"
 )
 
-func main(){
+func main() {
 	data, err := ioutil.ReadFile("elements.json")
-	if err != nil {log.Fatalf("Failed to read elements.json: %v", err)}
+	if err != nil {
+		log.Fatalf("Failed to read elements.json: %v", err)
+	}
 
 	var elements []Element
 	if err := json.Unmarshal(data, &elements); err != nil {
@@ -23,13 +25,12 @@ func main(){
 		elementMap[strings.ToLower(e.Name)] = e
 	}
 
-	// Input
 	var target string
 	fmt.Print("Masukkan target element: ")
 	fmt.Scanln(&target)
 	target = strings.ToLower(target)
 
-	fmt.Print("Pilih mode (1 = shortest, 2 = multiple): ")
+	fmt.Print("Pilih mode (1 = shortest/single, 2 = multiple): ")
 	var mode int
 	fmt.Scanln(&mode)
 
@@ -37,80 +38,79 @@ func main(){
 	var algo int
 	fmt.Scanln(&algo)
 
-
-	var path []string
 	if mode == 1 {
-		// ===== Shortest recipe mode =====
+		var singleRecipePlan map[string][]string
 		if algo == 1 {
-			path = bfsShortest(elementMap, target)
+			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
+			return
 		} else {
-			path = dfsMultiple(elementMap, basicElements,target, 1)[0]
+			foundRecipePlans := dfsMultiple(elementMap, target,  1)
+			if len(foundRecipePlans) > 0 {
+				singleRecipePlan = foundRecipePlans[0]
+			}
 		}
-		if len(path) == 0 {
-			fmt.Println("Tidak ditemukan jalur ke", target)
+
+		if singleRecipePlan == nil {
+			fmt.Println("Tidak ditemukan resep untuk", target)
 			return
 		}
 
-		fmt.Println("Shortest path ditemukan:", path)
-
+		fmt.Println("Resep ditemukan (via DFS):")
 		visited := make(map[string]bool)
-		tree := buildFullTree(target, elementMap, visited)
+		tree := buildRecipeTree(target, singleRecipePlan, elementMap, visited)
 		tree.Highlight = true
+		writeJSON([]TreeNode{tree}, target+"_single_dfs.json")
+		fmt.Println("Tree saved to", target+"_single_dfs.json")
 
-		writeJSON([]TreeNode{tree}, target+"_shortest.json")
-		fmt.Println("Tree saved to", target+"_shortest.json")
-	
 	} else if mode == 2 {
-		var paths [][]string
-		var maxRecipe int
+		var recipePlans []map[string][]string
+		var maxRecipeInput int
 		fmt.Print("Masukkan maksimal recipe: ")
-		fmt.Scanln(&maxRecipe)
+		fmt.Scanln(&maxRecipeInput)
 
 		if algo == 1 {
-			paths = bfsMultiple(elementMap, 
-				target, maxRecipe)
-		
+			fmt.Println("BFS untuk mode multiple belum diimplementasikan dengan struktur resep baru.")
+			return
 		} else {
-			paths = dfsMultiple(elementMap, basicElements,target, maxRecipe)
-		}
-		fmt.Println("Ditemukan", len(paths), "recipe")
-		fmt.Println("Path yang ditemukan:")
-		for _, path := range paths {
-			fmt.Println(path)
+			recipePlans = dfsMultiple(elementMap, target,  maxRecipeInput)
 		}
 
+		fmt.Println("Ditemukan", len(recipePlans), "resep via DFS.")
+		if len(recipePlans) == 0 {
+			return
+		}
 
 		var wg sync.WaitGroup
-		treeChan := make(chan TreeNode, len(paths))
+		treeChan := make(chan TreeNode, len(recipePlans))
 
-		for _, path := range paths {
+		for _, plan := range recipePlans {
 			wg.Add(1)
-			go func(p []string) {
+			go func(p map[string][]string) {
 				defer wg.Done()
-				visited := make(map[string]bool)
-				tree := buildFullTree(p[len(p)-1], elementMap, visited)
+				localVisited := make(map[string]bool)
+				tree := buildRecipeTree(target, p, elementMap, localVisited)
 				tree.Highlight = true
 				treeChan <- tree
-			}(path)
+			}(plan)
 		}
 
 		wg.Wait()
 		close(treeChan)
 
-		unique := make(map[string]bool)
 		var allTrees []TreeNode
-
+		// Deduplikasi tidak lagi diperlukan jika setiap 'plan' unik dan buildRecipeTree menghasilkan tree unik per plan.
+		// Namun, jika 'dfsMultiple' bisa menghasilkan plan identik (meski seharusnya tidak jika logikanya benar),
+		// deduplikasi berdasarkan struktur tree mungkin masih berguna. Untuk saat ini, kita asumsikan plan unik.
 		for t := range treeChan {
-			jsonBytes, _ := json.Marshal(t)
-			key := string(jsonBytes)
-			if !unique[key] {
-				allTrees = append(allTrees, t)
-				unique[key] = true
-			}
+			allTrees = append(allTrees, t)
 		}
 
-		writeJSON(allTrees, target+"_multiple.json")
-		fmt.Println("Semua tree tersimpan di", target+"_multiple.json")
+		if len(allTrees) > 0 {
+			writeJSON(allTrees, target+"_multiple_dfs.json")
+			fmt.Println("Semua tree tersimpan di", target+"_multiple_dfs.json")
+		} else {
+			fmt.Println("Tidak ada tree yang dihasilkan.")
+		}
 
 	} else {
 		fmt.Println("Mode tidak dikenali.")
