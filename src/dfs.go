@@ -62,7 +62,9 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 	var madeSuccessfully bool = false // Berhasil dibuat dgn setidaknya satu cara
 
 	for _, recipePair := range elemDetails.Recipes {
-		if d.maxRecipes > 0 && len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {}
+		if d.maxRecipes > 0 && len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {
+			break
+		}
 
 
 		if len(recipePair) != 2 {
@@ -90,7 +92,6 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 		}
         if len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {
              delete(currentRecipeSteps, elementToMakeCurrently)
-             madeSuccessfully = true 
              continue
         }
 
@@ -116,7 +117,7 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 			}
 		}
 		
-		delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack, coba resep lain
+		// delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack, coba resep lain
 
         if elementToMakeCurrently == d.initialTarget && len(*d.allFoundRecipes) >= d.maxRecipes {
             break
