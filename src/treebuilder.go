@@ -72,6 +72,8 @@ func buildFullTree(name string, elementMap map[string]Element, visited map[strin
 }
 
 func buildRecipeTree(elementName string, recipeSteps map[string][]string, elementMap map[string]Element, visitedInThisTree map[string]bool, memoizedTrees map[string]TreeNode) TreeNode {
+	elementName = strings.ToLower(elementName)
+
 	if !visitedInThisTree[elementName] {
 		if cachedNode, found := memoizedTrees[elementName]; found {
 			return cachedNode
@@ -79,7 +81,6 @@ func buildRecipeTree(elementName string, recipeSteps map[string][]string, elemen
 	}
 
 	node := TreeNode{Name: capitalize(elementName)}
-
 	if isBasicElement(elementName) || visitedInThisTree[elementName] {
 		if isBasicElement(elementName) && !visitedInThisTree[elementName] {
 			memoizedTrees[elementName] = node
@@ -89,23 +90,18 @@ func buildRecipeTree(elementName string, recipeSteps map[string][]string, elemen
 	visitedInThisTree[elementName] = true
 	defer delete(visitedInThisTree, elementName)
 
-	// Periksa apakah elementName memiliki langkah pembuatan spesifik dalam recipeSteps ini.
 	parentsToUse, partOfThisSpecificRecipe := recipeSteps[elementName]
 
 	if partOfThisSpecificRecipe && len(parentsToUse) == 2 {
-		// Elemen ini dibuat dari 'parentsToUse' dalam konteks resep spesifik ini.
 		parent1 := strings.ToLower(parentsToUse[0])
 		parent2 := strings.ToLower(parentsToUse[1])
 
-		// Buat node untuk kombinasi "Parent1 + Parent2"
-		recipeStepNode := TreeNode{
-			Name: fmt.Sprintf("%s + %s", capitalize(parent1), capitalize(parent2)),
-			Children: []TreeNode{
-				buildRecipeTree(parent1, recipeSteps, elementMap, visitedInThisTree, memoizedTrees),
-				buildRecipeTree(parent2, recipeSteps, elementMap, visitedInThisTree, memoizedTrees),
-			},
-		}
-		node.Children = append(node.Children, recipeStepNode)
+		childNode1 := buildRecipeTree(parent1, recipeSteps, elementMap, visitedInThisTree, memoizedTrees)
+		childNode2 := buildRecipeTree(parent2, recipeSteps, elementMap, visitedInThisTree, memoizedTrees)
+
+		node.Children = append(node.Children, childNode1)
+		node.Children = append(node.Children, childNode2)
+
 	}
 	memoizedTrees[elementName] = node
 	return node
