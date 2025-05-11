@@ -59,9 +59,25 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]str
 		return []map[string][]string{}
 	}
 
+	var operationalLimit int
+	isInitialTarget := (d.initialTarget == elementToMakeCurrently)
+
+	if d.maxRecipes <= 0 {
+		operationalLimit = 0
+	} else if isInitialTarget {
+		operationalLimit = d.maxRecipes
+	} else {
+		if d.maxRecipes < 10 {
+			operationalLimit = 20
+		} else {
+			operationalLimit = d.maxRecipes * 2
+		}
+	}
+
 	allRecipesForCurrentElement := make([]map[string][]string, 0)
 	productTier := elemDetails.Tier
 
+recipePairLoop:
 	for _, recipePair := range elemDetails.Recipes {
 		if len(recipePair) != 2 {
 			continue
@@ -75,52 +91,43 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]str
 		if !p1Exists || !p2Exists {
 			continue
 		}
-
 		if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
-			if !(isBasicElement(elemParent1.Name) && isBasicElement(elemParent2.Name) && elemParent1.Tier == 0 && elemParent2.Tier == 0 && productTier == 1) {
-                 if !(elemParent1.Tier < productTier && elemParent2.Tier < productTier) {
-				    continue
-                 }
-            } else if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
-                continue
-            }
+			continue
+		}
+		if strings.Contains(elemParent1.Name, "fanon") || strings.Contains(elemParent2.Name, "fanon") {
+			continue
 		}
 
-
 		pathsForParent1 := d.dfsRecursive(parent1Name)
-		if len(pathsForParent1) == 0 {
+		if !isBasicElement(elemParent1.Name) && len(pathsForParent1) == 0 {
 			continue
 		}
 
 		pathsForParent2 := d.dfsRecursive(parent2Name)
-		if len(pathsForParent2) == 0 {
+		if !isBasicElement(elemParent2.Name) && len(pathsForParent2) == 0 {
 			continue
 		}
 
+	combinationLoop:
 		for _, pathP1 := range pathsForParent1 {
 			for _, pathP2 := range pathsForParent2 {
-				if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
-					break
+				if operationalLimit > 0 && len(allRecipesForCurrentElement) >= operationalLimit {
+					break combinationLoop
 				}
 
-				newRecipe := make(map[string][]string)
-
+				newRecipe := make(map[string][]string, len(pathP1)+len(pathP2)+1)
 				for el, p := range pathP1 {
 					newRecipe[el] = p
 				}
 				for el, p := range pathP2 {
 					newRecipe[el] = p
 				}
-
 				newRecipe[elementToMakeCurrently] = []string{parent1Name, parent2Name}
 				allRecipesForCurrentElement = append(allRecipesForCurrentElement, newRecipe)
 			}
-			if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
-				break
-			}
 		}
-		if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
-			break
+		if operationalLimit > 0 && len(allRecipesForCurrentElement) >= operationalLimit {
+			break recipePairLoop
 		}
 	}
 
