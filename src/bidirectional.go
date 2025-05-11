@@ -4,6 +4,32 @@ import (
 	"strings"
 )
 
+// Helper function to build a map of which elements can be created from each element
+func buildReverseMap(elementMap map[string]Element) map[string][]string {
+	reverse := make(map[string][]string)
+	for name, elem := range elementMap {
+		for _, recipe := range elem.Recipes {
+			if len(recipe) == 2 {
+				a := strings.ToLower(recipe[0])
+				b := strings.ToLower(recipe[1])
+				reverse[a] = append(reverse[a], name)
+				reverse[b] = append(reverse[b], name)
+			}
+		}
+	}
+	return reverse
+}
+
+// Helper function to reverse a string slice
+func reverseSlice(s []string) []string {
+	result := make([]string, len(s))
+	for i, v := range s {
+		result[len(s)-1-i] = v
+	}
+	return result
+}
+
+// bidirectionalSearch finds a single shortest path from basic elements to target
 func bidirectionalSearch(elementMap map[string]Element, target string) []string {
 	reverseMap := buildReverseMap(elementMap)
 
@@ -29,7 +55,7 @@ func bidirectionalSearch(elementMap map[string]Element, target string) []string 
 
 		if pathB, ok := backwardVisited[nodeF]; ok {
 			// intersection found
-			return append(pathF, reverseSlice(pathB[:len(pathB)-1])...)
+			return append(pathF, reverseSlice(pathB[1:])...)
 		}
 
 		for name, elem := range elementMap {
@@ -53,19 +79,23 @@ func bidirectionalSearch(elementMap map[string]Element, target string) []string 
 		// expand backward
 		pathB := backwardQueue[0]
 		backwardQueue = backwardQueue[1:]
-		nodeB := strings.ToLower(pathB[len(pathB)-1])
+		nodeB := strings.ToLower(pathB[0])
 
 		if pathF, ok := forwardVisited[nodeB]; ok {
 			// intersection found
-			return append(pathF, reverseSlice(pathB[:len(pathB)-1])...)
+			return append(pathF, reverseSlice(pathB[1:])...)
 		}
 
-		for _, parent := range reverseMap[nodeB] {
-			if _, seen := backwardVisited[parent]; !seen {
-				newPath := append([]string{}, pathB...)
-				newPath = append(newPath, parent)
-				backwardQueue = append(backwardQueue, newPath)
-				backwardVisited[parent] = newPath
+		for ingredient, elements := range reverseMap {
+			for _, elem := range elements {
+				if nodeB == strings.ToLower(elem) {
+					if _, seen := backwardVisited[ingredient]; !seen {
+						newPath := []string{ingredient}
+						newPath = append(newPath, pathB...)
+						backwardQueue = append(backwardQueue, newPath)
+						backwardVisited[ingredient] = newPath
+					}
+				}
 			}
 		}
 	}
@@ -73,45 +103,31 @@ func bidirectionalSearch(elementMap map[string]Element, target string) []string 
 	return nil
 }
 
-func buildReverseMap(elementMap map[string]Element) map[string][]string {
-	reverse := make(map[string][]string)
-	for name, elem := range elementMap {
-		for _, recipe := range elem.Recipes {
-			if len(recipe) == 2 {
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-				reverse[a] = append(reverse[a], name)
-				reverse[b] = append(reverse[b], name)
-			}
-		}
+// bidirectionalMultiple returns multiple recipe paths in the format required by the tree builder
+func bidirectionalMultiple(elementMap map[string]Element, target string, maxRecipe int) []map[string][]string {
+	if isBasicElement(target) {
+		emptyRecipe := make(map[string][]string)
+		return []map[string][]string{emptyRecipe}
 	}
-	return reverse
-}
 
-func reverseSlice(s []string) []string {
-	result := make([]string, len(s))
-	for i, v := range s {
-		result[len(s)-1-i] = v
-	}
-	return result
-}
-
-func bidirectionalMultiple(elementMap map[string]Element, target string, maxRecipe int) [][]string {
 	reverseMap := buildReverseMap(elementMap)
 
+	// Forward BFS
 	forwardQueue := [][]string{}
 	forwardVisited := make(map[string][]string)
 
+	// Start forward search from basic elements
 	for _, basic := range basicElements {
 		forwardQueue = append(forwardQueue, []string{basic})
 		forwardVisited[strings.ToLower(basic)] = []string{basic}
 	}
 
+	// Backward BFS
 	backwardQueue := [][]string{{target}}
 	backwardVisited := make(map[string][]string)
 	backwardVisited[strings.ToLower(target)] = []string{target}
 
-	results := [][]string{}
+	var results [][]string
 
 	for len(forwardQueue) > 0 && len(backwardQueue) > 0 && len(results) < maxRecipe {
 		// Expand forward
@@ -119,11 +135,23 @@ func bidirectionalMultiple(elementMap map[string]Element, target string, maxReci
 		forwardQueue = forwardQueue[1:]
 		nodeF := strings.ToLower(pathF[len(pathF)-1])
 
+		// Check for intersection
 		if pathB, ok := backwardVisited[nodeF]; ok {
-			combined := append(pathF, reverseSlice(pathB[:len(pathB)-1])...)
-			results = append(results, combined)
+			combined := append(pathF, reverseSlice(pathB[1:])...)
+			// Deduplicate paths
+			isDuplicate := false
+			for _, existingPath := range results {
+				if pathsAreEqual(existingPath, combined) {
+					isDuplicate = true
+					break
+				}
+			}
+			if !isDuplicate {
+				results = append(results, combined)
+			}
 		}
 
+		// Expand forward search
 		for name, elem := range elementMap {
 			for _, recipe := range elem.Recipes {
 				if len(recipe) != 2 {
@@ -132,35 +160,70 @@ func bidirectionalMultiple(elementMap map[string]Element, target string, maxReci
 				a := strings.ToLower(recipe[0])
 				b := strings.ToLower(recipe[1])
 				if a == nodeF || b == nodeF {
-					if _, seen := forwardVisited[name]; !seen {
+					if _, seen := forwardVisited[strings.ToLower(name)]; !seen {
 						newPath := append([]string{}, pathF...)
 						newPath = append(newPath, name)
 						forwardQueue = append(forwardQueue, newPath)
-						forwardVisited[name] = newPath
+						forwardVisited[strings.ToLower(name)] = newPath
 					}
 				}
 			}
 		}
 
+		// Check if we have enough results
+		if len(results) >= maxRecipe {
+			break
+		}
+
 		// Expand backward
 		pathB := backwardQueue[0]
 		backwardQueue = backwardQueue[1:]
-		nodeB := strings.ToLower(pathB[len(pathB)-1])
+		nodeB := strings.ToLower(pathB[0]) // In backward search, the current node is at index 0
 
+		// Check for intersection
 		if pathF, ok := forwardVisited[nodeB]; ok {
-			combined := append(pathF, reverseSlice(pathB[:len(pathB)-1])...)
-			results = append(results, combined)
+			combined := append(pathF, reverseSlice(pathB[1:])...)
+			// Deduplicate paths
+			isDuplicate := false
+			for _, existingPath := range results {
+				if pathsAreEqual(existingPath, combined) {
+					isDuplicate = true
+					break
+				}
+			}
+			if !isDuplicate {
+				results = append(results, combined)
+			}
 		}
 
-		for _, parent := range reverseMap[nodeB] {
-			if _, seen := backwardVisited[parent]; !seen {
-				newPath := append([]string{}, pathB...)
-				newPath = append(newPath, parent)
-				backwardQueue = append(backwardQueue, newPath)
-				backwardVisited[parent] = newPath
+		// Expand backward search
+		for ingredient, elements := range reverseMap {
+			for _, elem := range elements {
+				if nodeB == strings.ToLower(elem) {
+					if _, seen := backwardVisited[strings.ToLower(ingredient)]; !seen {
+						newPath := []string{ingredient}
+						newPath = append(newPath, pathB...)
+						backwardQueue = append(backwardQueue, newPath)
+						backwardVisited[strings.ToLower(ingredient)] = newPath
+					}
+				}
 			}
 		}
 	}
 
-	return results
+	// Convert the path results to the recipe map format
+	return convertPathsToRecipeMaps(results, target, elementMap)
+}
+
+// Helper function to check if two paths are equal
+func pathsAreEqual(path1, path2 []string) bool {
+	if len(path1) != len(path2) {
+		return false
+	}
+	for i := 0; i < len(path1); i++ {
+		if strings.ToLower(path1[i]) != strings.ToLower(path2[i]) {
+			return false
+		}
+	}
+	return true
 }

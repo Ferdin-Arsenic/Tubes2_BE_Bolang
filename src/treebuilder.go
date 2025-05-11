@@ -77,7 +77,7 @@ func buildRecipeTree(elementName string, recipeSteps map[string][]string, elemen
 			return cachedNode
 		}
 	}
-	
+
 	node := TreeNode{Name: capitalize(elementName)}
 
 	if isBasicElement(elementName) || visitedInThisTree[elementName] {
@@ -175,4 +175,54 @@ func buildTreeFromPath(path []string, elementMap map[string]Element) TreeNode {
 	}
 
 	return node
+}
+
+func expandRecipePlan(recipePlan map[string][]string, elementMap map[string]Element) {
+	queue := make([]string, 0)
+	visited := make(map[string]bool)
+
+	// Masukkan semua elemen dari awal plan ke queue
+	for elem := range recipePlan {
+		queue = append(queue, elem)
+		visited[elem] = true
+	}
+	for _, pair := range recipePlan {
+		for _, ing := range pair {
+			if !visited[ing] {
+				queue = append(queue, ing)
+				visited[ing] = true
+			}
+		}
+	}
+
+	// Jalankan BFS untuk melengkapi semua dependency
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		if isBasicElement(curr) {
+			continue
+		}
+
+		if recipe, ok := elementMap[curr]; ok && len(recipe.Recipes) > 0 {
+			// Ambil resep pertama saja (atau bisa diatur)
+			mainRecipe := recipe.Recipes[0]
+			if len(mainRecipe) == 2 {
+				a := strings.ToLower(mainRecipe[0])
+				b := strings.ToLower(mainRecipe[1])
+				if _, exists := recipePlan[curr]; !exists {
+					recipePlan[curr] = []string{a, b}
+				}
+				// Tambahkan ingredient ke queue jika belum
+				if !visited[a] {
+					queue = append(queue, a)
+					visited[a] = true
+				}
+				if !visited[b] {
+					queue = append(queue, b)
+					visited[b] = true
+				}
+			}
+		}
+	}
 }

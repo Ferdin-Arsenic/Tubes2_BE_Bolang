@@ -35,21 +35,53 @@ func main() {
 	var mode int
 	fmt.Scanln(&mode)
 
-	// 🔥 TAMBahkan opsi algoritma ke-3 (bidirectional)
 	fmt.Print("Pilih algoritma (1 = bfs, 2 = dfs, 3 = bidirectional): ")
 	var algo int
 	fmt.Scanln(&algo)
 
+	var expand bool
+	fmt.Print("Apakah ingin tree detail sampai ke elemen dasar? (y/n): ")
+	var detailInput string
+	fmt.Scanln(&detailInput)
+	expand = strings.ToLower(detailInput) == "y"
+
 	startTime := time.Now()
+	var algoName string
+	switch algo {
+	case 1:
+		algoName = "bfs"
+	case 2:
+		algoName = "dfs"
+	case 3:
+		algoName = "bidirectional"
+	default:
+		algoName = "unknown"
+	}
+
 	if mode == 1 {
 		var recipePlan map[string][]string
+		var path []string
+
 		if algo == 1 {
-			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
-			return
-		} else {
+			path = bfsShortest(elementMap, target)
+			if path != nil && len(path) > 0 {
+				maps := convertPathsToRecipeMaps([][]string{path}, target, elementMap)
+				if len(maps) > 0 {
+					recipePlan = maps[0]
+				}
+			}
+		} else if algo == 2 {
 			foundRecipePlans := dfsMultiple(elementMap, target, 1)
 			if len(foundRecipePlans) > 0 {
 				recipePlan = foundRecipePlans[0]
+			}
+		} else if algo == 3 {
+			path = bidirectionalSearch(elementMap, target)
+			if path != nil && len(path) > 0 {
+				maps := convertPathsToRecipeMaps([][]string{path}, target, elementMap)
+				if len(maps) > 0 {
+					recipePlan = maps[0]
+				}
 			}
 		}
 
@@ -58,13 +90,16 @@ func main() {
 			return
 		}
 
-		fmt.Println("Resep ditemukan (via DFS):")
+		if expand {
+			expandRecipePlan(recipePlan, elementMap)
+		}
+
 		visited := make(map[string]bool)
 		memoCache := make(map[string]TreeNode)
 		tree := buildRecipeTree(target, recipePlan, elementMap, visited, memoCache)
 		tree.Highlight = true
-		writeJSON([]TreeNode{tree}, target+"_single_dfs.json")
-		fmt.Println("Tree saved to", target+"_single_dfs.json")
+		writeJSON([]TreeNode{tree}, fmt.Sprintf("%s_single_%s.json", target, algoName))
+		fmt.Printf("Tree saved to %s_single_%s.json\n", target, algoName)
 
 	} else if mode == 2 {
 		var recipePlans []map[string][]string
@@ -72,21 +107,28 @@ func main() {
 		fmt.Print("Masukkan maksimal recipe: ")
 		fmt.Scanln(&maxRecipeInput)
 
-		if algo == 1 {
-			fmt.Println("BFS untuk mode multiple belum diimplementasikan dengan struktur resep baru.")
-			return
+		fmt.Printf("Mencari resep untuk %s dengan algoritma %s...\n", target, algoName)
+		fmt.Print("Pilih sumber (1 = explicit dari file, 2 = pencarian traversal): ")
+		var source int
+		fmt.Scanln(&source)
+
+		if source == 1 {
+			recipePlans = getExplicitRecipes(target, elementMap, maxRecipeInput)
 		} else {
-			recipePlans = dfsMultiple(elementMap, target, maxRecipeInput)
+			switch algo {
+			case 1:
+				recipePlans = bfsMultiple(elementMap, target, maxRecipeInput)
+			case 2:
+				recipePlans = dfsMultiple(elementMap, target, maxRecipeInput)
+			case 3:
+				recipePlans = bidirectionalMultiple(elementMap, target, maxRecipeInput)
+			}
 		}
 
-		fmt.Println("Ditemukan", len(recipePlans), "resep via DFS.")
+		fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), algoName)
 		if len(recipePlans) == 0 {
 			return
 		}
-
-		// for i := range len(recipePlans) {
-		// 	recipePrinter(recipePlans[i])
-		// }
 
 		var wg sync.WaitGroup
 		treeChan := make(chan TreeNode, len(recipePlans))
@@ -95,14 +137,20 @@ func main() {
 			wg.Add(1)
 			go func(p map[string][]string) {
 				defer wg.Done()
+				localPlan := copyMap(p)
+
+				if expand {
+					expandRecipePlan(localPlan, elementMap)
+				}
+
 				localVisited := make(map[string]bool)
 				memoCache := make(map[string]TreeNode)
-
-				tree := buildRecipeTree(target, p, elementMap, localVisited, memoCache)
+				tree := buildRecipeTree(target, localPlan, elementMap, localVisited, memoCache)
 				tree.Highlight = true
 				treeChan <- tree
-			}(plan)
+			}(copyMap(plan))
 		}
+
 		fmt.Println("Waktu eksekusi: ", time.Since(startTime))
 		wg.Wait()
 		close(treeChan)
@@ -113,15 +161,43 @@ func main() {
 		}
 
 		if len(allTrees) > 0 {
-			writeJSON(allTrees, target+"_multiple_dfs.json")
-			fmt.Println("Semua tree tersimpan di", target+"_multiple_dfs.json")
+			filename := fmt.Sprintf("%s_multiple_%s.json", target, algoName)
+			writeJSON(allTrees, filename)
+			fmt.Printf("Semua tree tersimpan di %s\n", filename)
 		} else {
 			fmt.Println("Tidak ada tree yang dihasilkan.")
 		}
-
 	} else {
 		fmt.Println("Mode tidak dikenali.")
 	}
+}
+
+func getExplicitRecipes(target string, elementMap map[string]Element, max int) []map[string][]string {
+	var result []map[string][]string
+	recipes := elementMap[strings.ToLower(target)].Recipes
+
+	for i := 0; i < len(recipes) && i < max; i++ {
+		recipe := recipes[i]
+		if len(recipe) != 2 {
+			continue
+		}
+		plan := map[string][]string{
+			target: {
+				strings.ToLower(recipe[0]),
+				strings.ToLower(recipe[1]),
+			},
+		}
+		result = append(result, plan)
+	}
+	return result
+}
+
+func copyMap(original map[string][]string) map[string][]string {
+	copied := make(map[string][]string)
+	for k, v := range original {
+		copied[k] = append([]string{}, v...)
+	}
+	return copied
 }
 
 func recipePrinter(recipe map[string][]string) {
