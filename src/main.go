@@ -83,6 +83,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var nodesVisited int
 	startTime := time.Now()
 
 	if reqData.Algorithm == "BFS" {
@@ -99,7 +100,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"status":  "Starting DFS",
 			"message": "Initializing search algorithm",
 		})
-		recipePlans = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 
 	} else if reqData.Algorithm == "BID" {
 
