@@ -70,7 +70,7 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]str
 		if d.maxRecipes < 10 {
 			operationalLimit = 20
 		} else {
-			operationalLimit = d.maxRecipes * 2
+			operationalLimit = d.maxRecipes * 10
 		}
 	}
 
