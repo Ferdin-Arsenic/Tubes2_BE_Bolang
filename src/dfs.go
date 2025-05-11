@@ -6,9 +6,10 @@ type DFSData struct {
 	elementMap    map[string]Element
 	initialTarget string
 	maxRecipes    int
-	// Cache now stores slices of TreeNode
 	cache map[string][]TreeNode
+	nodeCounter int
 }
+
 func copyRecipe(originalMap map[string][]string) map[string][]string {
 	newMap := make(map[string][]string, len(originalMap))
 	for k, v := range originalMap {
@@ -19,12 +20,13 @@ func copyRecipe(originalMap map[string][]string) map[string][]string {
 	return newMap
 }
 
-func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []TreeNode {
+func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) ([]TreeNode, int) {
 	dfsData := DFSData{
 		elementMap:    elementMap,
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
 		cache:         make(map[string][]TreeNode), // Cache stores []TreeNode
+		nodeCounter: 0,
 	}
 
 	resultTreeNodes := dfsData.dfsRecursive(strings.ToLower(target))
@@ -32,12 +34,13 @@ func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 	// Optional: Apply maxRecipes limit to the final list of trees
 	// Your external de-duplication might happen before or after this.
 	if maxRecipes > 0 && len(resultTreeNodes) > maxRecipes {
-		return resultTreeNodes[:maxRecipes]
+		return resultTreeNodes[:maxRecipes], dfsData.nodeCounter
 	}
-	return resultTreeNodes
+	return resultTreeNodes, dfsData.nodeCounter
 }
 
 func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []TreeNode {
+	d.nodeCounter++
 	elementToMakeCurrently = strings.ToLower(elementToMakeCurrently)
 
 	if cachedResult, found := d.cache[elementToMakeCurrently]; found {
@@ -78,7 +81,7 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []TreeNode {
 		if d.maxRecipes < 10 {
 			operationalLimit = 20
 		} else {
-			operationalLimit = d.maxRecipes * 10
+			operationalLimit = d.maxRecipes * 1000
 		}
 	}
 
