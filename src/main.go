@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+	// "sync"
 	"log"
-	"sync"
 	"net/http"
 	"strconv"
 	"github.com/gorilla/websocket"
@@ -74,7 +74,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		elementMap[strings.ToLower(e.Name)] = e
 	}
 
-	var recipePlans []map[string][]string
+	var recipePlans []TreeNode
 
 	maxRecipeInput, err := strconv.Atoi(reqData.MaxRecipes)
 	if err != nil {
@@ -93,7 +93,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"status": "Starting BFS",
 			"message": "Initializing search algorithm",
 		})
-		recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		// recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 
 	} else if reqData.Algorithm == "DFS" {
 
@@ -109,7 +109,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"status": "Starting Bidirectional",
 			"message": "Initializing search algorithm",
 		})
-		recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		// recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 	}
 
 
@@ -126,39 +126,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 
-	var wg sync.WaitGroup
-	treeChan := make(chan TreeNode, len(recipePlans))
-	for _, plan := range recipePlans {
-		wg.Add(1)
-		go func(p map[string][]string) {
-			defer wg.Done()
-			localPlan := copyMap(p)
-
-			expandRecipePlan(localPlan, elementMap)
-
-
-			localVisited := make(map[string]bool)
-			memoCache := make(map[string]TreeNode)
-			tree := buildRecipeTree(strings.ToLower(reqData.Target), localPlan, elementMap, localVisited, memoCache)
-			tree.Highlight = true
-			treeChan <- tree
-		}(copyMap(plan))
-	}
+	
 
 
 	fmt.Println("Waktu eksekusi: ", elapsed)
-	wg.Wait()
-	close(treeChan)
-
-	var allTrees []TreeNode
-	for t := range treeChan {
-		allTrees = append(allTrees, t)
-	}
+	
 	conn.WriteJSON(map[string]interface{}{
 		"status":   "Completed",
-		"message":  fmt.Sprintf("Found %d recipe plans", len(allTrees)),
+		"message":  fmt.Sprintf("Found %d recipe plans", len(recipePlans)),
 		"duration": elapsed.String(),
-		"treeData":    allTrees, 
+		"treeData":    recipePlans, 
 	})
 }
 
@@ -208,11 +185,9 @@ func mainCli() {
 	var algo int
 	fmt.Scanln(&algo)
 
-	var expand bool
 	fmt.Print("Apakah ingin tree detail sampai ke elemen dasar? (y/n): ")
 	var detailInput string
 	fmt.Scanln(&detailInput)
-	expand = strings.ToLower(detailInput) == "y"
 
 	startTime := time.Now()
 	var algoName string
@@ -228,30 +203,14 @@ func mainCli() {
 	}
 
 	if mode == 1 {
+		var foundRecipePlans []TreeNode 
 		var recipePlan map[string][]string
-		var path []string
 
 		if algo == 1 {
-			path = bfsShortest(elementMap, target)
-			if path != nil && len(path) > 0 {
-				maps := convertPathsToRecipeMaps([][]string{path}, target, elementMap)
-				if len(maps) > 0 {
-					recipePlan = maps[0]
-				}
-			}
-		} else if algo == 2 {
-			foundRecipePlans := dfsMultiple(elementMap, target, 1)
-			if len(foundRecipePlans) > 0 {
-				recipePlan = foundRecipePlans[0]
-			}
-		} else if algo == 3 {
-			path = bidirectionalSearch(elementMap, target)
-			if path != nil && len(path) > 0 {
-				maps := convertPathsToRecipeMaps([][]string{path}, target, elementMap)
-				if len(maps) > 0 {
-					recipePlan = maps[0]
-				}
-			}
+			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
+			return
+		} else {
+			foundRecipePlans = dfsMultiple(elementMap, target,  1)
 		}
 
 		if recipePlan == nil {
@@ -259,19 +218,12 @@ func mainCli() {
 			return
 		}
 
-		if expand {
-			expandRecipePlan(recipePlan, elementMap)
-		}
-
-		visited := make(map[string]bool)
-		memoCache := make(map[string]TreeNode)
-		tree := buildRecipeTree(target, recipePlan, elementMap, visited, memoCache)
-		tree.Highlight = true
-		writeJSON([]TreeNode{tree}, fmt.Sprintf("%s_single_%s.json", target, algoName))
-		fmt.Printf("Tree saved to %s_single_%s.json\n", target, algoName)
+		fmt.Println("Resep ditemukan (via DFS):")
+		writeJSON(foundRecipePlans, target+"_single_dfs.json")
+		fmt.Println("Tree saved to", target+"_single_dfs.json")
 
 	} else if mode == 2 {
-		var recipePlans []map[string][]string
+		var recipePlans []TreeNode
 		var maxRecipeInput int
 		fmt.Print("Masukkan maksimal recipe: ")
 		fmt.Scanln(&maxRecipeInput)
@@ -281,58 +233,20 @@ func mainCli() {
 		var source int
 		fmt.Scanln(&source)
 
-		if source == 1 {
-			recipePlans = getExplicitRecipes(target, elementMap, maxRecipeInput)
-		} else {
-			switch algo {
-			case 1:
-				recipePlans = bfsMultiple(elementMap, target, maxRecipeInput)
-			case 2:
-				recipePlans = dfsMultiple(elementMap, target, maxRecipeInput)
-			case 3:
-				recipePlans = bidirectionalMultiple(elementMap, target, maxRecipeInput)
-			}
-		}
-
 		fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), algoName)
 		if len(recipePlans) == 0 {
 			return
 		}
 
-		var wg sync.WaitGroup
-		treeChan := make(chan TreeNode, len(recipePlans))
-
-		for _, plan := range recipePlans {
-			wg.Add(1)
-			go func(p map[string][]string) {
-				defer wg.Done()
-				localPlan := copyMap(p)
-
-				if expand {
-					expandRecipePlan(localPlan, elementMap)
-				}
-
-				localVisited := make(map[string]bool)
-				memoCache := make(map[string]TreeNode)
-				tree := buildRecipeTree(target, localPlan, elementMap, localVisited, memoCache)
-				tree.Highlight = true
-				treeChan <- tree
-			}(copyMap(plan))
-		}
-
+		// for i := range len(recipePlans) {
+		// 	recipePrinter(recipePlans[i]) 
+		// }
 		fmt.Println("Waktu eksekusi: ", time.Since(startTime))
-		wg.Wait()
-		close(treeChan)
 
-		var allTrees []TreeNode
-		for t := range treeChan {
-			allTrees = append(allTrees, t)
-		}
 
-		if len(allTrees) > 0 {
-			filename := fmt.Sprintf("%s_multiple_%s.json", target, algoName)
-			writeJSON(allTrees, filename)
-			fmt.Printf("Semua tree tersimpan di %s\n", filename)
+		if len(recipePlans) > 0 {
+			writeJSON(recipePlans, target+"_multiple_dfs.json")
+			fmt.Println("Semua tree tersimpan di", target+"_multiple_dfs.json")
 		} else {
 			fmt.Println("Tidak ada tree yang dihasilkan.")
 		}
