@@ -6,67 +6,63 @@ type DFSData struct {
 	elementMap      map[string]Element
     initialTarget   string
     maxRecipes      int
-    allFoundRecipes *[]map[string][]string
+    cache         map[string][]map[string][]string
+}
+
+func copyRecipe(originalMap map[string][]string) map[string][]string {
+	newMap := make(map[string][]string, len(originalMap))
+	for k, v := range originalMap {
+		parentsCopy := make([]string, len(v))
+		copy(parentsCopy, v)
+		newMap[k] = parentsCopy
+	}
+	return newMap
 }
 
 func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []map[string][]string {
-
-	allFoundRecipes := make([]map[string][]string, 0)
-
-	 if isBasicElement(target) {
-		emptyRecipe := make(map[string][]string)
-		allFoundRecipes = append(allFoundRecipes, emptyRecipe)
-        return allFoundRecipes
-    }	
-	// Map untuk mendeteksi cycle
-	pathCycleDetector := make(map[string]bool)
-
-	// Map untuk membangun langkah-langkah resep untuk satu resep
-	currentRecipeSteps := make(map[string][]string)
-
 	dfsData := DFSData{
-		elementMap:      elementMap,
-		initialTarget:   target,
-		maxRecipes:      maxRecipes,
-		allFoundRecipes: &allFoundRecipes,
+		elementMap:    elementMap,
+		initialTarget: strings.ToLower(target),
+		maxRecipes:    maxRecipes,
+		cache:         make(map[string][]map[string][]string),
 	}
 
-	// Param target pertama untuk rekursi pertama, target kedua untuk setiap rekursi
-	dfsData.dfsRecursive(target, currentRecipeSteps, pathCycleDetector)
+	resultRecipes := dfsData.dfsRecursive(strings.ToLower(target))
 
-	return allFoundRecipes
+	if maxRecipes > 0 && len(resultRecipes) > maxRecipes {
+		return resultRecipes[:maxRecipes]
+	}
+	return resultRecipes
 }
 
-// Fungsi pembantu rekursif untuk DFS backward
-func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps map[string][]string, pathCycleDetector map[string]bool) bool {
-	if len(*d.allFoundRecipes) >= d.maxRecipes {
-		return false 
-	}
+func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]string {
+	elementToMakeCurrently = strings.ToLower(elementToMakeCurrently)
 
-	if isBasicElement(elementToMakeCurrently) {
-		return true
+	if cachedResult, found := d.cache[elementToMakeCurrently]; found {
+		return cachedResult
 	}
-
-	if pathCycleDetector[elementToMakeCurrently] {
-		return false // Siklus
-	}
-	pathCycleDetector[elementToMakeCurrently] = true
-	defer delete(pathCycleDetector, elementToMakeCurrently)
 
 	elemDetails, exists := d.elementMap[elementToMakeCurrently]
-	if !exists || len(elemDetails.Recipes) == 0 {
-		return false // tidak ada resep
+	if !exists {
+		d.cache[elementToMakeCurrently] = []map[string][]string{}
+		return []map[string][]string{}
 	}
 
+	if isBasicElement(elemDetails.Name) {
+		basicRecipeList := []map[string][]string{make(map[string][]string)}
+		d.cache[elementToMakeCurrently] = basicRecipeList
+		return basicRecipeList
+	}
+
+	if len(elemDetails.Recipes) == 0 {
+		d.cache[elementToMakeCurrently] = []map[string][]string{}
+		return []map[string][]string{}
+	}
+
+	allRecipesForCurrentElement := make([]map[string][]string, 0)
 	productTier := elemDetails.Tier
-	var madeSuccessfully bool = false // Berhasil dibuat dgn setidaknya satu cara
 
 	for _, recipePair := range elemDetails.Recipes {
-		if d.maxRecipes > 0 && len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {
-			break
-		}
-
-
 		if len(recipePair) != 2 {
 			continue
 		}
@@ -79,49 +75,55 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string, currentRecipeSteps
 		if !p1Exists || !p2Exists {
 			continue
 		}
-		if elemParent1.Tier > productTier || elemParent2.Tier > productTier {
+
+		if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
+			if !(isBasicElement(elemParent1.Name) && isBasicElement(elemParent2.Name) && elemParent1.Tier == 0 && elemParent2.Tier == 0 && productTier == 1) {
+                 if !(elemParent1.Tier < productTier && elemParent2.Tier < productTier) {
+				    continue
+                 }
+            } else if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
+                continue
+            }
+		}
+
+
+		pathsForParent1 := d.dfsRecursive(parent1Name)
+		if len(pathsForParent1) == 0 {
 			continue
 		}
 
-		currentRecipeSteps[elementToMakeCurrently] = []string{parent1Name, parent2Name}
-
-		parent1OK := d.dfsRecursive(parent1Name, currentRecipeSteps, pathCycleDetector)
-		if !parent1OK {
-			delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack
-			continue                                           // Coba resep lain
-		}
-        if len(*d.allFoundRecipes) >= d.maxRecipes && elementToMakeCurrently != d.initialTarget {
-             delete(currentRecipeSteps, elementToMakeCurrently)
-             continue
-        }
-
-
-		parent2OK := d.dfsRecursive(parent2Name, currentRecipeSteps, pathCycleDetector)
-		if !parent2OK {
-			delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack
-			continue                                           // Coba resep lain
+		pathsForParent2 := d.dfsRecursive(parent2Name)
+		if len(pathsForParent2) == 0 {
+			continue
 		}
 
-		// Jika sampai sini, kedua parent OK, jadi element berhasil dibuat dengan resep ini
-		madeSuccessfully = true
-
-		if elementToMakeCurrently == d.initialTarget {
-			if d.maxRecipes <= 0 || len(*d.allFoundRecipes) < d.maxRecipes {
-				finalRecipe := make(map[string][]string)
-				for key, val := range currentRecipeSteps {
-					parentsCopy := make([]string, len(val))
-					copy(parentsCopy, val)
-					finalRecipe[key] = parentsCopy
+		for _, pathP1 := range pathsForParent1 {
+			for _, pathP2 := range pathsForParent2 {
+				if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
+					break
 				}
-				*d.allFoundRecipes = append(*d.allFoundRecipes, finalRecipe)
+
+				newRecipe := make(map[string][]string)
+
+				for el, p := range pathP1 {
+					newRecipe[el] = p
+				}
+				for el, p := range pathP2 {
+					newRecipe[el] = p
+				}
+
+				newRecipe[elementToMakeCurrently] = []string{parent1Name, parent2Name}
+				allRecipesForCurrentElement = append(allRecipesForCurrentElement, newRecipe)
+			}
+			if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
+				break
 			}
 		}
-		
-		// delete(currentRecipeSteps, elementToMakeCurrently) // Backtrack, coba resep lain
-
-        if elementToMakeCurrently == d.initialTarget && len(*d.allFoundRecipes) >= d.maxRecipes {
-            break
-        }
+		if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
+			break
+		}
 	}
-	return madeSuccessfully
+
+	d.cache[elementToMakeCurrently] = allRecipesForCurrentElement
+	return allRecipesForCurrentElement
 }
