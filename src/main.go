@@ -129,6 +129,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		"message":  fmt.Sprintf("Found %d recipe plans", len(recipePlans)),
 		"duration": elapsed.String(),
 		"treeData": recipePlans,
+		"nodesVisited": nodesVisited,
 	})
 }
 
@@ -201,7 +202,7 @@ func mainCli() {
 			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
 			return
 		} else {
-			foundRecipePlans = dfsMultiple(elementMap, target, 1)
+			// foundRecipePlans, nodesVisited = dfsMultiple(elementMap, target, 1)
 		}
 
 		if recipePlan == nil {
