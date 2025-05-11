@@ -46,13 +46,11 @@ func bfsShortest(elementMap map[string]Element, target string) []string {
 }
 
 // bfsMultiple returns multiple recipe paths in the format required by the tree builder
-func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []map[string][]string {
+func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []TreeNode {
 	target = strings.ToLower(target)
 
-	// Jika target adalah elemen dasar, return map kosong
 	if isBasicElement(target) {
-		emptyRecipe := make(map[string][]string)
-		return []map[string][]string{emptyRecipe}
+		return []TreeNode{{Name: capitalize(target)}}
 	}
 
 	// Dapatkan semua resep yang bisa membuat target
@@ -60,7 +58,6 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 	if elem, exists := elementMap[target]; exists {
 		for _, recipe := range elem.Recipes {
 			if len(recipe) == 2 {
-				// Pastikan menggunakan lowercase untuk konsistensi
 				targetRecipes = append(targetRecipes, []string{
 					strings.ToLower(recipe[0]),
 					strings.ToLower(recipe[1]),
@@ -69,57 +66,55 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 		}
 	}
 
-	// Jika tidak ada resep valid, return kosong
 	if len(targetRecipes) == 0 {
-		return []map[string][]string{}
+		return []TreeNode{}
 	}
 
-	allResults := []map[string][]string{}
+	var allResults []TreeNode
 
-	// Untuk setiap resep target, cari jalur ke bahan-bahannya
 	for _, recipe := range targetRecipes {
 		ingredient1 := recipe[0]
 		ingredient2 := recipe[1]
 
-		// Cari jalur untuk ingredient1
 		paths1 := [][]string{}
 		if !isBasicElement(ingredient1) {
 			paths1 = bfsGetPaths(elementMap, ingredient1, maxRecipes)
 		} else {
-			// Jika elemen dasar, buat jalur sederhana
 			paths1 = [][]string{{ingredient1}}
 		}
 
-		// Cari jalur untuk ingredient2
 		paths2 := [][]string{}
 		if !isBasicElement(ingredient2) {
 			paths2 = bfsGetPaths(elementMap, ingredient2, maxRecipes)
 		} else {
-			// Jika elemen dasar, buat jalur sederhana
 			paths2 = [][]string{{ingredient2}}
 		}
 
-		// Gabungkan paths dari kedua bahan untuk membuat resep lengkap
 		for _, path1 := range paths1 {
 			for _, path2 := range paths2 {
 				if maxRecipes > 0 && len(allResults) >= maxRecipes {
 					return allResults
 				}
 
-				// Buat resep baru
+				// gabung path jadi recipeMap, lalu build tree
 				recipeMap := combinePathsToRecipe(path1, path2, target, recipe, elementMap)
 				if len(recipeMap) > 0 {
-					allResults = append(allResults, recipeMap)
+					tree := buildRecipeTree(
+						target,
+						recipeMap,
+						elementMap,
+						make(map[string]bool),
+						make(map[string]TreeNode),
+					)
+					allResults = append(allResults, tree)
 				}
 			}
 		}
 	}
 
-	// Batasi jumlah hasil sesuai maxRecipes
 	if maxRecipes > 0 && len(allResults) > maxRecipes {
 		return allResults[:maxRecipes]
 	}
-
 	return allResults
 }
 

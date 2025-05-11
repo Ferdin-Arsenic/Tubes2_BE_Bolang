@@ -5,24 +5,25 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
+
 	// "sync"
 	"log"
 	"net/http"
 	"strconv"
-	"github.com/gorilla/websocket"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
-    CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 type RequestData struct {
-    Algorithm  string `json:"algorithm"`
-    Target     string `json:"target"`
-    MaxRecipes string `json:"maxRecipes"`
+	Algorithm  string `json:"algorithm"`
+	Target     string `json:"target"`
+	MaxRecipes string `json:"maxRecipes"`
 }
-
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -41,15 +42,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Received request - Element: %s, Algorithm: %s, MaxRecipes: %s", 
+	log.Printf("Received request - Element: %s, Algorithm: %s, MaxRecipes: %s",
 		reqData.Target, reqData.Algorithm, reqData.MaxRecipes)
 
 	conn.WriteJSON(map[string]interface{}{
-		"status": "Processing",
+		"status":  "Processing",
 		"message": "Loading elements data",
 	})
-
-
 
 	data, err := ioutil.ReadFile("data/elements.json")
 	if err != nil {
@@ -84,21 +83,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	startTime := time.Now()
 
 	if reqData.Algorithm == "BFS" {
 
 		conn.WriteJSON(map[string]interface{}{
-			"status": "Starting BFS",
+			"status":  "Starting BFS",
 			"message": "Initializing search algorithm",
 		})
-		// recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 
 	} else if reqData.Algorithm == "DFS" {
 
 		conn.WriteJSON(map[string]interface{}{
-			"status": "Starting DFS",
+			"status":  "Starting DFS",
 			"message": "Initializing search algorithm",
 		})
 		recipePlans = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
@@ -106,13 +104,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	} else if reqData.Algorithm == "BID" {
 
 		conn.WriteJSON(map[string]interface{}{
-			"status": "Starting Bidirectional",
+			"status":  "Starting Bidirectional",
 			"message": "Initializing search algorithm",
 		})
-		// recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 	}
-
-
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
@@ -125,17 +121,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
-	
-
-
 	fmt.Println("Waktu eksekusi: ", elapsed)
-	
+
 	conn.WriteJSON(map[string]interface{}{
 		"status":   "Completed",
 		"message":  fmt.Sprintf("Found %d recipe plans", len(recipePlans)),
 		"duration": elapsed.String(),
-		"treeData":    recipePlans, 
+		"treeData": recipePlans,
 	})
 }
 
@@ -153,8 +145,6 @@ func main() {
 	log.Println("Server started at http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
-
-
 
 func mainCli() {
 	data, err := ioutil.ReadFile("data/elements.json")
@@ -203,14 +193,14 @@ func mainCli() {
 	}
 
 	if mode == 1 {
-		var foundRecipePlans []TreeNode 
+		var foundRecipePlans []TreeNode
 		var recipePlan map[string][]string
 
 		if algo == 1 {
 			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
 			return
 		} else {
-			foundRecipePlans = dfsMultiple(elementMap, target,  1)
+			foundRecipePlans = dfsMultiple(elementMap, target, 1)
 		}
 
 		if recipePlan == nil {
@@ -239,10 +229,9 @@ func mainCli() {
 		}
 
 		// for i := range len(recipePlans) {
-		// 	recipePrinter(recipePlans[i]) 
+		// 	recipePrinter(recipePlans[i])
 		// }
 		fmt.Println("Waktu eksekusi: ", time.Since(startTime))
-
 
 		if len(recipePlans) > 0 {
 			writeJSON(recipePlans, target+"_multiple_dfs.json")
