@@ -3,12 +3,12 @@ package main
 import "strings"
 
 type DFSData struct {
-	elementMap      map[string]Element
-    initialTarget   string
-    maxRecipes      int
-    cache         map[string][]map[string][]string
+	elementMap    map[string]Element
+	initialTarget string
+	maxRecipes    int
+	// Cache now stores slices of TreeNode
+	cache map[string][]TreeNode
 }
-
 func copyRecipe(originalMap map[string][]string) map[string][]string {
 	newMap := make(map[string][]string, len(originalMap))
 	for k, v := range originalMap {
@@ -19,23 +19,25 @@ func copyRecipe(originalMap map[string][]string) map[string][]string {
 	return newMap
 }
 
-func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []map[string][]string {
+func dfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []TreeNode {
 	dfsData := DFSData{
 		elementMap:    elementMap,
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
-		cache:         make(map[string][]map[string][]string),
+		cache:         make(map[string][]TreeNode), // Cache stores []TreeNode
 	}
 
-	resultRecipes := dfsData.dfsRecursive(strings.ToLower(target))
+	resultTreeNodes := dfsData.dfsRecursive(strings.ToLower(target))
 
-	if maxRecipes > 0 && len(resultRecipes) > maxRecipes {
-		return resultRecipes[:maxRecipes]
+	// Optional: Apply maxRecipes limit to the final list of trees
+	// Your external de-duplication might happen before or after this.
+	if maxRecipes > 0 && len(resultTreeNodes) > maxRecipes {
+		return resultTreeNodes[:maxRecipes]
 	}
-	return resultRecipes
+	return resultTreeNodes
 }
 
-func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]string {
+func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []TreeNode {
 	elementToMakeCurrently = strings.ToLower(elementToMakeCurrently)
 
 	if cachedResult, found := d.cache[elementToMakeCurrently]; found {
@@ -44,24 +46,46 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]str
 
 	elemDetails, exists := d.elementMap[elementToMakeCurrently]
 	if !exists {
-		d.cache[elementToMakeCurrently] = []map[string][]string{}
-		return []map[string][]string{}
+		d.cache[elementToMakeCurrently] = []TreeNode{}
+		return []TreeNode{}
 	}
 
+	currentElementNameFormatted := elemDetails.Name
+
+
 	if isBasicElement(elemDetails.Name) {
-		basicRecipeList := []map[string][]string{make(map[string][]string)}
-		d.cache[elementToMakeCurrently] = basicRecipeList
-		return basicRecipeList
+		leafNode := TreeNode{Name: currentElementNameFormatted}
+		basicTreeList := []TreeNode{leafNode}
+		d.cache[elementToMakeCurrently] = basicTreeList
+		return basicTreeList
 	}
 
 	if len(elemDetails.Recipes) == 0 {
-		d.cache[elementToMakeCurrently] = []map[string][]string{}
-		return []map[string][]string{}
+		leafNode := TreeNode{Name: currentElementNameFormatted}
+		noRecipeTreeList := []TreeNode{leafNode}
+		d.cache[elementToMakeCurrently] = noRecipeTreeList
+		return noRecipeTreeList
 	}
 
-	allRecipesForCurrentElement := make([]map[string][]string, 0)
+	var operationalLimit int
+	isInitialTarget := (d.initialTarget == elementToMakeCurrently)
+
+	if d.maxRecipes <= 0 {
+		operationalLimit = 0
+	} else if isInitialTarget {
+		operationalLimit = d.maxRecipes
+	} else {
+		if d.maxRecipes < 10 {
+			operationalLimit = 20
+		} else {
+			operationalLimit = d.maxRecipes * 10
+		}
+	}
+
+	allPossibleTreesForCurrentElement := make([]TreeNode, 0)
 	productTier := elemDetails.Tier
 
+recipePairLoop:
 	for _, recipePair := range elemDetails.Recipes {
 		if len(recipePair) != 2 {
 			continue
@@ -75,55 +99,43 @@ func (d *DFSData) dfsRecursive(elementToMakeCurrently string) []map[string][]str
 		if !p1Exists || !p2Exists {
 			continue
 		}
-
 		if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
-			if !(isBasicElement(elemParent1.Name) && isBasicElement(elemParent2.Name) && elemParent1.Tier == 0 && elemParent2.Tier == 0 && productTier == 1) {
-                 if !(elemParent1.Tier < productTier && elemParent2.Tier < productTier) {
-				    continue
-                 }
-            } else if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
-                continue
-            }
+			continue
 		}
-
-
-		pathsForParent1 := d.dfsRecursive(parent1Name)
-		if len(pathsForParent1) == 0 {
+		if strings.Contains(elemParent1.Name, "fanon") || strings.Contains(elemParent2.Name, "fanon") {
 			continue
 		}
 
-		pathsForParent2 := d.dfsRecursive(parent2Name)
-		if len(pathsForParent2) == 0 {
+		subTreesForParent1 := d.dfsRecursive(parent1Name)
+		if !isBasicElement(elemParent1.Name) && len(subTreesForParent1) == 0 {
 			continue
 		}
 
-		for _, pathP1 := range pathsForParent1 {
-			for _, pathP2 := range pathsForParent2 {
-				if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
-					break
+		subTreesForParent2 := d.dfsRecursive(parent2Name)
+		if !isBasicElement(elemParent2.Name) && len(subTreesForParent2) == 0 {
+			continue
+		}
+
+	combinationLoop:
+		for _, treeP1 := range subTreesForParent1 { 
+			for _, treeP2 := range subTreesForParent2 { 
+				if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
+					break combinationLoop
 				}
 
-				newRecipe := make(map[string][]string)
-
-				for el, p := range pathP1 {
-					newRecipe[el] = p
+				newNode := TreeNode{
+					Name:     currentElementNameFormatted,
+					Children: []TreeNode{treeP1, treeP2},
 				}
-				for el, p := range pathP2 {
-					newRecipe[el] = p
-				}
-
-				newRecipe[elementToMakeCurrently] = []string{parent1Name, parent2Name}
-				allRecipesForCurrentElement = append(allRecipesForCurrentElement, newRecipe)
-			}
-			if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
-				break
+				allPossibleTreesForCurrentElement = append(allPossibleTreesForCurrentElement, newNode)
 			}
 		}
-		if d.initialTarget == elementToMakeCurrently && d.maxRecipes > 0 && len(allRecipesForCurrentElement) >= d.maxRecipes {
-			break
+
+		if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
+			break recipePairLoop
 		}
 	}
 
-	d.cache[elementToMakeCurrently] = allRecipesForCurrentElement
-	return allRecipesForCurrentElement
+	d.cache[elementToMakeCurrently] = allPossibleTreesForCurrentElement
+	return allPossibleTreesForCurrentElement
 }
