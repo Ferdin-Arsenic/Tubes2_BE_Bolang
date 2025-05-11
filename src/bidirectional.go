@@ -108,6 +108,7 @@ func bidirectionalMultiple(elementMap map[string]Element, target string, maxReci
 	if isBasicElement(target) {
 		return []TreeNode{{Name: capitalize(target)}}
 	}
+	targetTier := elementMap[strings.ToLower(target)].Tier
 
 	reverseMap := buildReverseMap(elementMap)
 
@@ -142,6 +143,10 @@ func bidirectionalMultiple(elementMap map[string]Element, target string, maxReci
 				if len(recipe) != 2 {
 					continue
 				}
+				if elem.Tier >= targetTier {
+					continue
+				}
+
 				a := strings.ToLower(recipe[0])
 				b := strings.ToLower(recipe[1])
 				if a == nodeF || b == nodeF {
@@ -173,6 +178,10 @@ func bidirectionalMultiple(elementMap map[string]Element, target string, maxReci
 
 		for ingredient, elements := range reverseMap {
 			for _, elem := range elements {
+				if elementMap[elem].Tier >= targetTier {
+					continue
+				}
+
 				if nodeB == strings.ToLower(elem) {
 					if _, seen := backwardVisited[strings.ToLower(ingredient)]; !seen {
 						newPath := []string{ingredient}
@@ -186,9 +195,16 @@ func bidirectionalMultiple(elementMap map[string]Element, target string, maxReci
 	}
 
 	// 🔁 Konversi ke []TreeNode
-	recipeMaps := convertPathsToRecipeMaps(results, target, elementMap)
+	rawMaps := convertPathsToRecipeMaps(results, target, elementMap)
+	recipeMaps := []map[string][]string{}
+	for _, raw := range rawMaps {
+		expandRecipePlan(raw, elementMap, targetTier)
+		recipeMaps = append(recipeMaps, raw)
+	}
+
 	trees := []TreeNode{}
 	for _, recipeMap := range recipeMaps {
+		expandRecipePlan(recipeMap, elementMap, targetTier)
 		tree := buildRecipeTree(
 			strings.ToLower(target),
 			recipeMap,

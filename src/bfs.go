@@ -69,6 +69,7 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 	if len(targetRecipes) == 0 {
 		return []TreeNode{}
 	}
+	targetTier := elementMap[target].Tier
 
 	var allResults []TreeNode
 
@@ -78,14 +79,14 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 
 		paths1 := [][]string{}
 		if !isBasicElement(ingredient1) {
-			paths1 = bfsGetPaths(elementMap, ingredient1, maxRecipes)
+			paths1 = bfsGetPaths(elementMap, ingredient1, maxRecipes, targetTier)
 		} else {
 			paths1 = [][]string{{ingredient1}}
 		}
 
 		paths2 := [][]string{}
 		if !isBasicElement(ingredient2) {
-			paths2 = bfsGetPaths(elementMap, ingredient2, maxRecipes)
+			paths2 = bfsGetPaths(elementMap, ingredient2, maxRecipes, targetTier)
 		} else {
 			paths2 = [][]string{{ingredient2}}
 		}
@@ -97,8 +98,9 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 				}
 
 				// gabung path jadi recipeMap, lalu build tree
-				recipeMap := combinePathsToRecipe(path1, path2, target, recipe, elementMap)
+				recipeMap := combinePathsToRecipe(path1, path2, target, recipe, elementMap, targetTier)
 				if len(recipeMap) > 0 {
+					expandRecipePlan(recipeMap, elementMap, targetTier)
 					tree := buildRecipeTree(
 						target,
 						recipeMap,
@@ -119,7 +121,8 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 }
 
 // bfsGetPaths mencari jalur BFS dari elemen dasar ke target
-func bfsGetPaths(elementMap map[string]Element, target string, maxPaths int) [][]string {
+func bfsGetPaths(elementMap map[string]Element, target string, maxPaths int, targetTier int) [][]string {
+
 	queue := [][]string{}
 	visited := make(map[string]bool)
 	var results [][]string
@@ -164,6 +167,10 @@ func bfsGetPaths(elementMap map[string]Element, target string, maxPaths int) [][
 				if len(recipe) != 2 {
 					continue
 				}
+				if elem.Tier >= targetTier {
+					continue
+				}
+
 				a := strings.ToLower(recipe[0])
 				b := strings.ToLower(recipe[1])
 
@@ -196,7 +203,8 @@ func bfsGetPaths(elementMap map[string]Element, target string, maxPaths int) [][
 }
 
 // combinePathsToRecipe menggabungkan dua jalur dan membuat resep map
-func combinePathsToRecipe(path1, path2 []string, target string, targetIngredients []string, elementMap map[string]Element) map[string][]string {
+func combinePathsToRecipe(path1, path2 []string, target string, targetIngredients []string, elementMap map[string]Element, targetTier int) map[string][]string {
+
 	recipeMap := make(map[string][]string)
 
 	// Tambahkan target dengan bahannya
@@ -206,6 +214,9 @@ func combinePathsToRecipe(path1, path2 []string, target string, targetIngredient
 	for i := 1; i < len(path1); i++ {
 		elem := strings.ToLower(path1[i])
 		if isBasicElement(elem) {
+			continue
+		}
+		if elementMap[elem].Tier >= targetTier {
 			continue
 		}
 
@@ -245,6 +256,9 @@ func combinePathsToRecipe(path1, path2 []string, target string, targetIngredient
 	for i := 1; i < len(path2); i++ {
 		elem := strings.ToLower(path2[i])
 		if isBasicElement(elem) || recipeMap[elem] != nil {
+			continue
+		}
+		if elementMap[elem].Tier >= targetTier {
 			continue
 		}
 

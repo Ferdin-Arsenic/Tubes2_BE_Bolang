@@ -173,7 +173,7 @@ func buildTreeFromPath(path []string, elementMap map[string]Element) TreeNode {
 	return node
 }
 
-func expandRecipePlan(recipePlan map[string][]string, elementMap map[string]Element) {
+func expandRecipePlan(recipePlan map[string][]string, elementMap map[string]Element, targetTier int) {
 	queue := make([]string, 0)
 	visited := make(map[string]bool)
 
@@ -201,6 +201,10 @@ func expandRecipePlan(recipePlan map[string][]string, elementMap map[string]Elem
 		}
 
 		if recipe, ok := elementMap[curr]; ok && len(recipe.Recipes) > 0 {
+			if recipe.Tier >= targetTier {
+				continue
+			}
+
 			// Ambil resep pertama saja (atau bisa diatur)
 			mainRecipe := recipe.Recipes[0]
 			if len(mainRecipe) == 2 {
