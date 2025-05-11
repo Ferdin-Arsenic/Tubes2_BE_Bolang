@@ -4,13 +4,182 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
+	"log"
 	"sync"
+	"net/http"
+	"strconv"
+	"github.com/gorilla/websocket"
 	"time"
 )
 
+var upgrader = websocket.Upgrader{
+    CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+type RequestData struct {
+    Algorithm  string `json:"algorithm"`
+    Target     string `json:"target"`
+    MaxRecipes string `json:"maxRecipes"`
+}
+
+
+func handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("Upgrade error:", err)
+		return
+	}
+	defer conn.Close()
+
+	log.Println("WebSocket connection established")
+
+	var reqData RequestData
+	err = conn.ReadJSON(&reqData)
+	if err != nil {
+		log.Println("Read error:", err)
+		return
+	}
+
+	log.Printf("Received request - Element: %s, Algorithm: %s, MaxRecipes: %s", 
+		reqData.Target, reqData.Algorithm, reqData.MaxRecipes)
+
+	conn.WriteJSON(map[string]interface{}{
+		"status": "Processing",
+		"message": "Loading elements data",
+	})
+
+
+
+	data, err := ioutil.ReadFile("data/elements.json")
+	if err != nil {
+		log.Fatalf("Failed to read elements.json: %v", err)
+		conn.WriteJSON(map[string]interface{}{
+			"error": "Failed to read elements data",
+		})
+		return
+	}
+
+	var elements []Element
+	if err := json.Unmarshal(data, &elements); err != nil {
+		log.Fatalf("Failed to parse JSON: %v", err)
+		conn.WriteJSON(map[string]interface{}{
+			"error": "Failed to parse elements data",
+		})
+		return
+	}
+
+	elementMap := make(map[string]Element)
+	for _, e := range elements {
+		elementMap[strings.ToLower(e.Name)] = e
+	}
+
+	var recipePlans []map[string][]string
+
+	maxRecipeInput, err := strconv.Atoi(reqData.MaxRecipes)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"error": "Invalid MaxRecipes value",
+		})
+		return
+	}
+
+
+	startTime := time.Now()
+
+	if reqData.Algorithm == "BFS" {
+
+		conn.WriteJSON(map[string]interface{}{
+			"status": "Starting BFS",
+			"message": "Initializing search algorithm",
+		})
+		recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+
+	} else if reqData.Algorithm == "DFS" {
+
+		conn.WriteJSON(map[string]interface{}{
+			"status": "Starting DFS",
+			"message": "Initializing search algorithm",
+		})
+		recipePlans = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+
+	} else if reqData.Algorithm == "BID" {
+
+		conn.WriteJSON(map[string]interface{}{
+			"status": "Starting Bidirectional",
+			"message": "Initializing search algorithm",
+		})
+		recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+	}
+
+
+
+	elapsed := time.Since(startTime)
+	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
+
+	if len(recipePlans) == 0 {
+		conn.WriteJSON(map[string]interface{}{
+			"status":  "Completed",
+			"message": "No recipe plans found",
+		})
+		return
+	}
+
+
+	var wg sync.WaitGroup
+	treeChan := make(chan TreeNode, len(recipePlans))
+	for _, plan := range recipePlans {
+		wg.Add(1)
+		go func(p map[string][]string) {
+			defer wg.Done()
+			localPlan := copyMap(p)
+
+			expandRecipePlan(localPlan, elementMap)
+
+
+			localVisited := make(map[string]bool)
+			memoCache := make(map[string]TreeNode)
+			tree := buildRecipeTree(strings.ToLower(reqData.Target), localPlan, elementMap, localVisited, memoCache)
+			tree.Highlight = true
+			treeChan <- tree
+		}(copyMap(plan))
+	}
+
+
+	fmt.Println("Waktu eksekusi: ", elapsed)
+	wg.Wait()
+	close(treeChan)
+
+	var allTrees []TreeNode
+	for t := range treeChan {
+		allTrees = append(allTrees, t)
+	}
+	conn.WriteJSON(map[string]interface{}{
+		"status":   "Completed",
+		"message":  fmt.Sprintf("Found %d recipe plans", len(allTrees)),
+		"duration": elapsed.String(),
+		"treeData":    allTrees, 
+	})
+}
+
 func main() {
+	http.HandleFunc("/ws", handleWebSocket)
+
+	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Content-Type", "application/json")
+		http.ServeFile(w, r, "../public/tree.json")
+	})
+
+	log.Println("Server started at http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+
+
+func mainCli() {
 	data, err := ioutil.ReadFile("data/elements.json")
 	if err != nil {
 		log.Fatalf("Failed to read elements.json: %v", err)
