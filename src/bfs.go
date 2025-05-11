@@ -2,6 +2,9 @@ package main
 
 import (
 	"strings"
+	"github.com/gorilla/websocket"
+	"time"
+	"log"
 )
 
 // bfsShortest finds a single shortest path from basic elements to target
@@ -45,7 +48,6 @@ func bfsShortest(elementMap map[string]Element, target string) []string {
 	return nil
 }
 
-// bfsMultiple returns multiple recipe paths in the format required by the tree builder
 func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []TreeNode {
 	target = strings.ToLower(target)
 
@@ -109,6 +111,91 @@ func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) [
 						make(map[string]TreeNode),
 					)
 					allResults = append(allResults, tree)
+				}
+			}
+		}
+	}
+
+	if maxRecipes > 0 && len(allResults) > maxRecipes {
+		return allResults[:maxRecipes]
+	}
+	return allResults
+}
+
+// bfsMultiple returns multiple recipe paths in the format required by the tree builder
+func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes int, delay int, conn *websocket.Conn) []TreeNode {
+	target = strings.ToLower(target)
+
+	if isBasicElement(target) {
+		return []TreeNode{{Name: capitalize(target)}}
+	}
+
+	// Dapatkan semua resep yang bisa membuat target
+	targetRecipes := [][]string{}
+	if elem, exists := elementMap[target]; exists {
+		for _, recipe := range elem.Recipes {
+			if len(recipe) == 2 {
+				targetRecipes = append(targetRecipes, []string{
+					strings.ToLower(recipe[0]),
+					strings.ToLower(recipe[1]),
+				})
+			}
+		}
+	}
+
+	if len(targetRecipes) == 0 {
+		return []TreeNode{}
+	}
+	targetTier := elementMap[target].Tier
+
+	var allResults []TreeNode
+
+	for _, recipe := range targetRecipes {
+		ingredient1 := recipe[0]
+		ingredient2 := recipe[1]
+
+		paths1 := [][]string{}
+		if !isBasicElement(ingredient1) {
+			paths1 = bfsGetPaths(elementMap, ingredient1, maxRecipes, targetTier)
+		} else {
+			paths1 = [][]string{{ingredient1}}
+		}
+
+		paths2 := [][]string{}
+		if !isBasicElement(ingredient2) {
+			paths2 = bfsGetPaths(elementMap, ingredient2, maxRecipes, targetTier)
+		} else {
+			paths2 = [][]string{{ingredient2}}
+		}
+
+		for _, path1 := range paths1 {
+			for _, path2 := range paths2 {
+				if maxRecipes > 0 && len(allResults) >= maxRecipes {
+					return allResults
+				}
+
+				// gabung path jadi recipeMap, lalu build tree
+				recipeMap := combinePathsToRecipe(path1, path2, target, recipe, elementMap, targetTier)
+				if len(recipeMap) > 0 {
+					expandRecipePlan(recipeMap, elementMap, targetTier)
+					tree := buildRecipeTree(
+						target,
+						recipeMap,
+						elementMap,
+						make(map[string]bool),
+						make(map[string]TreeNode),
+					)
+					allResults = append(allResults, tree)
+					conn.WriteJSON(map[string]interface{}{
+					"status":   "Progress",
+					"message":  "Finding trees",
+					"duration": 0,
+					"treeData": allResults,
+					"nodesVisited": 0,
+					})
+					log.Println("Sending live update")
+					log.Println(delay)
+					time.Sleep(time.Duration(delay) * time.Millisecond)
 				}
 			}
 		}

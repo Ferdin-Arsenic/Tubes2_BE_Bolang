@@ -23,6 +23,8 @@ type RequestData struct {
 	Algorithm  string `json:"algorithm"`
 	Target     string `json:"target"`
 	MaxRecipes string `json:"maxRecipes"`
+	LiveUpdate bool   `json:"liveUpdate"`
+	Delay      int   `json:"delay"`
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +87,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	var nodesVisited int
 	startTime := time.Now()
+	fmt.Printf("Delay: %d\n", reqData.Delay)
 
 	if reqData.Algorithm == "BFS" {
 
@@ -92,7 +95,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"status":  "Starting BFS",
 			"message": "Initializing search algorithm",
 		})
-		recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+
+		if reqData.LiveUpdate {
+			recipePlans = bfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
+			log.Println("BFS Live Update")
+		} else {
+			recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		}
 
 	} else if reqData.Algorithm == "DFS" {
 
@@ -100,16 +109,21 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"status":  "Starting DFS",
 			"message": "Initializing search algorithm",
 		})
-		recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 
-	} else if reqData.Algorithm == "BID" {
-
-		conn.WriteJSON(map[string]interface{}{
-			"status":  "Starting Bidirectional",
-			"message": "Initializing search algorithm",
-		})
-		recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		if reqData.LiveUpdate {
+			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
+		} else {
+			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+		}
 	}
+	// } else if reqData.Algorithm == "BID" {
+
+	// 	conn.WriteJSON(map[string]interface{}{
+	// 		"status":  "Starting Bidirectional",
+	// 		"message": "Initializing search algorithm",
+	// 	})
+	// 	recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+	// }
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
@@ -129,7 +143,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		"message":  fmt.Sprintf("Found %d recipe plans", len(recipePlans)),
 		"duration": elapsed.String(),
 		"treeData": recipePlans,
-		"nodesVisited": nodesVisited,
+		"nodes": nodesVisited,
 	})
 }
 
