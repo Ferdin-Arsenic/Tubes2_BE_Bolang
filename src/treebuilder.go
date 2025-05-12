@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -42,16 +40,6 @@ func buildRecipeTree(elementName string, recipeSteps map[string][]string, elemen
 	memoizedTrees[elementName] = node
 	return node
 }
-
-func writeJSON(data []TreeNode, filename string) {
-	f, _ := os.Create("data/" + filename)
-	defer f.Close()
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	enc.Encode(data)
-}
-
-
 
 func buildTreeFromPath(path []string, elementMap map[string]Element) TreeNode {
 	if len(path) == 0 {
