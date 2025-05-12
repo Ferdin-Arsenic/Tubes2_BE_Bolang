@@ -29,6 +29,20 @@ type RequestData struct {
 	Delay      int   `json:"delay"`
 }
 
+type Element struct {
+	Name    string     `json:"name"`
+	Recipes [][]string `json:"recipes"`
+	Tier    int        `json:"tier"`
+}
+
+type TreeNode struct {
+	Name      string     `json:"name"`
+	Children  []TreeNode `json:"children,omitempty"`
+	Highlight bool       `json:"highlight,omitempty"`
+}
+
+var basicElements = []string{"air", "earth", "fire", "water"}
+
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -276,26 +290,18 @@ func getExplicitRecipes(target string, elementMap map[string]Element, max int) [
 	return result
 }
 
-func copyMap(original map[string][]string) map[string][]string {
-	copied := make(map[string][]string)
-	for k, v := range original {
-		copied[k] = append([]string{}, v...)
-	}
-	return copied
-}
-
-func recipePrinter(recipe map[string][]string) {
-	// Enhanced printing with better formatting
-	fmt.Println("Printing recipe:")
-
-	for element, ingredients := range recipe {
-		fmt.Printf("  To make %s, combine:\n", element)
-
-		if len(ingredients) == 2 {
-			fmt.Printf("    - %s\n    - %s\n", ingredients[0], ingredients[1])
-		} else {
-			fmt.Println("    (Invalid recipe format)")
+func isBasicElement(name string) bool {
+	for _, b := range basicElements {
+		if strings.ToLower(name) == strings.ToLower(b) {
+			return true
 		}
 	}
-	fmt.Println() // Empty line after recipe
+	return false
+}
+
+func capitalize(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

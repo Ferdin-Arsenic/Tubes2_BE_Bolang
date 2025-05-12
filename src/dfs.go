@@ -12,7 +12,6 @@ type AlgoData struct {
 	initialTarget string
 	maxRecipes    int
 	cache map[string][]TreeNode
-	treesSignature map[string]bool
 	nodeCounter int64
 }
 
@@ -20,12 +19,11 @@ func dfsMultiple(target string, maxRecipes int) ([]TreeNode, int) {
 	AlgoData := AlgoData{
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
-		cache:         make(map[string][]TreeNode),
 		nodeCounter:   0,
 	}
 
 	var resultTrees []TreeNode
-	resultTrees = AlgoData.dfsRecursiveMultithread(strings.ToLower(target))
+	resultTrees = AlgoData.dfsRecursive(strings.ToLower(target))
 
 	if maxRecipes > 0 && len(resultTrees) > maxRecipes {
 		return resultTrees[:maxRecipes], int(AlgoData.nodeCounter)
@@ -34,7 +32,7 @@ func dfsMultiple(target string, maxRecipes int) ([]TreeNode, int) {
 }
 
 
-func (d *AlgoData) dfsRecursiveMultithread(currElement string) []TreeNode {
+func (d *AlgoData) dfsRecursive(currElement string) []TreeNode {
 	atomic.AddInt64(&d.nodeCounter, 1)
 	currElement = strings.ToLower(currElement)
 
@@ -55,18 +53,10 @@ func (d *AlgoData) dfsRecursiveMultithread(currElement string) []TreeNode {
 		return noRecipeTreeList
 	}
 
-	var operationalLimit int
-
-	if d.maxRecipes <= 0 {
-		operationalLimit = 0
-	} else {
-		operationalLimit = 100000
-	}
-
 	currTreeCombinations := make([]TreeNode, 0)
 	productTier := elemDetails.Tier
 
-recipePairLoop:
+	recipePairLoop:
 	for _, recipePair := range elemDetails.Recipes {
 		if len(recipePair) != 2 {
 			continue
@@ -83,9 +73,6 @@ recipePairLoop:
 		if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
 			continue
 		}
-		if strings.Contains(elemParent1.Name, "fanon") || strings.Contains(elemParent2.Name, "fanon") {
-			continue
-		}
 
 		var subTreesForParent1 []TreeNode
 		var subTreesForParent2 []TreeNode
@@ -94,30 +81,22 @@ recipePairLoop:
 
 		go func() {
 			defer wg.Done()
-			subTreesForParent1 = d.dfsRecursiveMultithread(parent1Name)
+			subTreesForParent1 = d.dfsRecursive(parent1Name)
 		}()
 
 		go func() {
 			defer wg.Done()
-			subTreesForParent2 = d.dfsRecursiveMultithread(parent2Name)
+			subTreesForParent2 = d.dfsRecursive(parent2Name)
 		}()
 		
 		wg.Wait()
-		if !isBasicElement(elemParent1.Name) && len(subTreesForParent1) == 0 {
-			continue
-		}
+		if !isBasicElement(elemParent1.Name) && len(subTreesForParent1) == 0 {continue}
+		if !isBasicElement(elemParent2.Name) && len(subTreesForParent2) == 0 {continue}
 
-
-		if !isBasicElement(elemParent2.Name) && len(subTreesForParent2) == 0 {
-			continue
-		}
-
-
-
-	combinationLoop:
+		combinationLoop:
 		for _, treeP1 := range subTreesForParent1 { 
 			for _, treeP2 := range subTreesForParent2 { 
-				if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
+				if d.maxRecipes > 0 && len(currTreeCombinations) >= d.maxRecipes {
 					break combinationLoop
 				}
 
@@ -129,11 +108,10 @@ recipePairLoop:
 			}
 		}
 
-		if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
+		if d.maxRecipes > 0 && len(currTreeCombinations) >= d.maxRecipes {
 			break recipePairLoop
 		}
 	}
-
 	return currTreeCombinations
 }
 

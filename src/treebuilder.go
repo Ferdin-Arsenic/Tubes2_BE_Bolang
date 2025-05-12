@@ -7,20 +7,6 @@ import (
 	"strings"
 )
 
-type Element struct {
-	Name    string     `json:"name"`
-	Recipes [][]string `json:"recipes"`
-	Tier    int        `json:"tier"`
-}
-
-type TreeNode struct {
-	Name      string     `json:"name"`
-	Children  []TreeNode `json:"children,omitempty"`
-	Highlight bool       `json:"highlight,omitempty"`
-}
-
-var basicElements = []string{"air", "earth", "fire", "water"}
-
 func buildRecipeTree(elementName string, recipeSteps map[string][]string, elementMap map[string]Element, visitedInThisTree map[string]bool, memoizedTrees map[string]TreeNode) TreeNode {
 	elementName = strings.ToLower(elementName)
 
@@ -65,21 +51,7 @@ func writeJSON(data []TreeNode, filename string) {
 	enc.Encode(data)
 }
 
-func isBasicElement(name string) bool {
-	for _, b := range basicElements {
-		if strings.ToLower(name) == strings.ToLower(b) {
-			return true
-		}
-	}
-	return false
-}
 
-func capitalize(s string) string {
-	if len(s) == 0 {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
 
 func buildTreeFromPath(path []string, elementMap map[string]Element) TreeNode {
 	if len(path) == 0 {
