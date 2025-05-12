@@ -116,9 +116,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
+			recipePlans, nodesVisited = dfsMultipleLive(strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 		} else {
-			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 	} else if reqData.Algorithm == "BID" {
 
