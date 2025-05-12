@@ -19,6 +19,8 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+var elementMap map[string]Element
+
 type RequestData struct {
 	Algorithm  string `json:"algorithm"`
 	Target     string `json:"target"`
@@ -70,7 +72,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	elementMap := make(map[string]Element)
+	elementMap = make(map[string]Element)
 	for _, e := range elements {
 		elementMap[strings.ToLower(e.Name)] = e
 	}
@@ -105,9 +107,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
+			recipePlans, nodesVisited = dfsMultipleLive(strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
 		} else {
-			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, false)
+			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), maxRecipeInput, false)
 		}
 	}
 	// } else if reqData.Algorithm == "BID" {
