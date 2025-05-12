@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sort"
 )
 
 type Element struct {
@@ -225,4 +226,46 @@ func expandRecipePlan(recipePlan map[string][]string, elementMap map[string]Elem
 			}
 		}
 	}
+}
+
+func generateTreeSignature(node TreeNode) string {
+	var sb strings.Builder
+	sb.WriteString("N<") // Node Start
+	sb.WriteString(node.Name)
+	sb.WriteString(">")
+
+	if len(node.Children) > 0 {
+		sb.WriteString("C<") // Children Start
+		childSignatures := make([]string, len(node.Children))
+		for i, child := range node.Children {
+			childSignatures[i] = generateTreeSignature(child)
+		}
+		sort.Strings(childSignatures) // Sort child signatures for canonical order
+
+		for i, sig := range childSignatures {
+			sb.WriteString(sig)
+			if i < len(childSignatures)-1 {
+				sb.WriteString(",")
+			}
+		}
+		sb.WriteString(">") // Children End
+	}
+	return sb.String()
+}
+
+// CountUniqueTrees takes a slice of TreeNodes and returns the count of unique tree structures.
+func CountUniqueTrees(trees []TreeNode) int {
+	if len(trees) == 0 {
+		return 0
+	}
+
+	seenSignatures := make(map[string]struct{})
+
+	for _, tree := range trees {
+		signature := generateTreeSignature(tree)
+		// Add the signature to the set. The length of the set at the end
+		// will be the count of unique signatures (and thus unique trees).
+		seenSignatures[signature] = struct{}{}
+	}
+	return len(seenSignatures)
 }

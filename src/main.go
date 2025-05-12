@@ -78,7 +78,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	var recipePlans []TreeNode
 
 	maxRecipeInput, err := strconv.Atoi(reqData.MaxRecipes)
-	if err != nil {
+	if err != nil || maxRecipeInput <= 0 {
 		conn.WriteJSON(map[string]interface{}{
 			"error": "Invalid MaxRecipes value",
 		})
@@ -95,13 +95,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"status":  "Starting BFS",
 			"message": "Initializing search algorithm",
 		})
-
-		if reqData.LiveUpdate {
-			recipePlans = bfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
-			log.Println("BFS Live Update")
-		} else {
-			recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
-		}
+		recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
 
 	} else if reqData.Algorithm == "DFS" {
 
@@ -113,7 +107,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if reqData.LiveUpdate {
 			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
 		} else {
-			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, false)
 		}
 	}
 	// } else if reqData.Algorithm == "BID" {
@@ -127,7 +121,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
-
+	fmt.Println("Unique Trees: ", CountUniqueTrees(recipePlans))
+	
 	if len(recipePlans) == 0 {
 		conn.WriteJSON(map[string]interface{}{
 			"status":  "Completed",
