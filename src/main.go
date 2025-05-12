@@ -105,7 +105,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			recipePlans = bfsMultipleLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 			log.Println("BFS Live Update")
 		} else {
-			recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			recipePlans, nodesVisited = bfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 
 	} else if reqData.Algorithm == "DFS" {
