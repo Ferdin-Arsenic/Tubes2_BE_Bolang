@@ -84,6 +84,8 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var nodesVisited int
+	_ = nodesVisited
+
 	startTime := time.Now()
 
 	if reqData.Algorithm == "BFS" {
@@ -147,103 +149,103 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func mainCli() {
-	data, err := ioutil.ReadFile("data/elements.json")
-	if err != nil {
-		log.Fatalf("Failed to read elements.json: %v", err)
-	}
+// func mainCli() {
+// 	data, err := ioutil.ReadFile("data/elements.json")
+// 	if err != nil {
+// 		log.Fatalf("Failed to read elements.json: %v", err)
+// 	}
 
-	var elements []Element
-	if err := json.Unmarshal(data, &elements); err != nil {
-		log.Fatalf("Failed to parse JSON: %v", err)
-	}
+// 	var elements []Element
+// 	if err := json.Unmarshal(data, &elements); err != nil {
+// 		log.Fatalf("Failed to parse JSON: %v", err)
+// 	}
 
-	elementMap := make(map[string]Element)
-	for _, e := range elements {
-		elementMap[strings.ToLower(e.Name)] = e
-	}
+// 	elementMap := make(map[string]Element)
+// 	for _, e := range elements {
+// 		elementMap[strings.ToLower(e.Name)] = e
+// 	}
 
-	var target string
-	fmt.Print("Masukkan target element: ")
-	fmt.Scanln(&target)
-	target = strings.ToLower(target)
+// 	var target string
+// 	fmt.Print("Masukkan target element: ")
+// 	fmt.Scanln(&target)
+// 	target = strings.ToLower(target)
 
-	fmt.Print("Pilih mode (1 = shortest/single, 2 = multiple): ")
-	var mode int
-	fmt.Scanln(&mode)
+// 	fmt.Print("Pilih mode (1 = shortest/single, 2 = multiple): ")
+// 	var mode int
+// 	fmt.Scanln(&mode)
 
-	fmt.Print("Pilih algoritma (1 = bfs, 2 = dfs, 3 = bidirectional): ")
-	var algo int
-	fmt.Scanln(&algo)
+// 	fmt.Print("Pilih algoritma (1 = bfs, 2 = dfs, 3 = bidirectional): ")
+// 	var algo int
+// 	fmt.Scanln(&algo)
 
-	fmt.Print("Apakah ingin tree detail sampai ke elemen dasar? (y/n): ")
-	var detailInput string
-	fmt.Scanln(&detailInput)
+// 	fmt.Print("Apakah ingin tree detail sampai ke elemen dasar? (y/n): ")
+// 	var detailInput string
+// 	fmt.Scanln(&detailInput)
 
-	startTime := time.Now()
-	var algoName string
-	switch algo {
-	case 1:
-		algoName = "bfs"
-	case 2:
-		algoName = "dfs"
-	case 3:
-		algoName = "bidirectional"
-	default:
-		algoName = "unknown"
-	}
+// 	startTime := time.Now()
+// 	var algoName string
+// 	switch algo {
+// 	case 1:
+// 		algoName = "bfs"
+// 	case 2:
+// 		algoName = "dfs"
+// 	case 3:
+// 		algoName = "bidirectional"
+// 	default:
+// 		algoName = "unknown"
+// 	}
 
-	if mode == 1 {
-		var foundRecipePlans []TreeNode
-		var recipePlan map[string][]string
+// 	if mode == 1 {
+// 		var foundRecipePlans []TreeNode
+// 		var recipePlan map[string][]string
 
-		if algo == 1 {
-			fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
-			return
-		} else {
-			foundRecipePlans = dfsMultiple(elementMap, target, 1)
-		}
+// 		// if algo == 1 {
+// 		// 	fmt.Println("BFS untuk mode shortest belum diimplementasikan dengan struktur resep baru.")
+// 		// 	return
+// 		// } else {
+// 		// 	foundRecipePlans = dfsMultiple(elementMap, target, 1)
+// 		// }
 
-		if recipePlan == nil {
-			fmt.Println("Tidak ditemukan resep untuk", target)
-			return
-		}
+// 		// if recipePlan == nil {
+// 		// 	fmt.Println("Tidak ditemukan resep untuk", target)
+// 		// 	return
+// 		// }
 
-		fmt.Println("Resep ditemukan (via DFS):")
-		writeJSON(foundRecipePlans, target+"_single_dfs.json")
-		fmt.Println("Tree saved to", target+"_single_dfs.json")
+// 		fmt.Println("Resep ditemukan (via DFS):")
+// 		writeJSON(foundRecipePlans, target+"_single_dfs.json")
+// 		fmt.Println("Tree saved to", target+"_single_dfs.json")
 
-	} else if mode == 2 {
-		var recipePlans []TreeNode
-		var maxRecipeInput int
-		fmt.Print("Masukkan maksimal recipe: ")
-		fmt.Scanln(&maxRecipeInput)
+// 	} else if mode == 2 {
+// 		var recipePlans []TreeNode
+// 		var maxRecipeInput int
+// 		fmt.Print("Masukkan maksimal recipe: ")
+// 		fmt.Scanln(&maxRecipeInput)
 
-		fmt.Printf("Mencari resep untuk %s dengan algoritma %s...\n", target, algoName)
-		fmt.Print("Pilih sumber (1 = explicit dari file, 2 = pencarian traversal): ")
-		var source int
-		fmt.Scanln(&source)
+// 		fmt.Printf("Mencari resep untuk %s dengan algoritma %s...\n", target, algoName)
+// 		fmt.Print("Pilih sumber (1 = explicit dari file, 2 = pencarian traversal): ")
+// 		var source int
+// 		fmt.Scanln(&source)
 
-		fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), algoName)
-		if len(recipePlans) == 0 {
-			return
-		}
+// 		fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), algoName)
+// 		if len(recipePlans) == 0 {
+// 			return
+// 		}
 
-		// for i := range len(recipePlans) {
-		// 	recipePrinter(recipePlans[i])
-		// }
-		fmt.Println("Waktu eksekusi: ", time.Since(startTime))
+// 		// for i := range len(recipePlans) {
+// 		// 	recipePrinter(recipePlans[i])
+// 		// }
+// 		fmt.Println("Waktu eksekusi: ", time.Since(startTime))
 
-		if len(recipePlans) > 0 {
-			writeJSON(recipePlans, target+"_multiple_dfs.json")
-			fmt.Println("Semua tree tersimpan di", target+"_multiple_dfs.json")
-		} else {
-			fmt.Println("Tidak ada tree yang dihasilkan.")
-		}
-	} else {
-		fmt.Println("Mode tidak dikenali.")
-	}
-}
+// 		if len(recipePlans) > 0 {
+// 			writeJSON(recipePlans, target+"_multiple_dfs.json")
+// 			fmt.Println("Semua tree tersimpan di", target+"_multiple_dfs.json")
+// 		} else {
+// 			fmt.Println("Tidak ada tree yang dihasilkan.")
+// 		}
+// 	} else {
+// 		fmt.Println("Mode tidak dikenali.")
+// 	}
+// }
 
 func getExplicitRecipes(target string, elementMap map[string]Element, max int) []map[string][]string {
 	var result []map[string][]string
