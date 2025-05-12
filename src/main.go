@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strings"
-
-	// "sync"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -22,7 +19,7 @@ var upgrader = websocket.Upgrader{
 type RequestData struct {
 	Algorithm  string `json:"algorithm"`
 	Target     string `json:"target"`
-	MaxRecipes string `json:"maxRecipes"`
+	MaxRecipes int `json:"maxRecipes"`
 	LiveUpdate bool   `json:"liveUpdate"`
 	Delay      int   `json:"delay"`
 }
@@ -77,14 +74,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	var recipePlans []TreeNode
 
-	maxRecipeInput, err := strconv.Atoi(reqData.MaxRecipes)
-	if err != nil {
-		conn.WriteJSON(map[string]interface{}{
-			"error": "Invalid MaxRecipes value",
-		})
-		return
-	}
-
 	var nodesVisited int
 	startTime := time.Now()
 	fmt.Printf("Delay: %d\n", reqData.Delay)
@@ -97,10 +86,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans = bfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
+			recipePlans = bfsMultipleLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 			log.Println("BFS Live Update")
 		} else {
-			recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+			recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 
 	} else if reqData.Algorithm == "DFS" {
@@ -111,19 +100,23 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
+			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 		} else {
-			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
+			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+		}
+	} else if reqData.Algorithm == "BID" {
+
+		conn.WriteJSON(map[string]interface{}{
+			"status":  "Starting Bidirectional Search",
+			"message": "Initializing search algorithm",
+		})
+
+		if reqData.LiveUpdate {
+			recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
+		} else {
+			recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 	}
-	// } else if reqData.Algorithm == "BID" {
-
-	// 	conn.WriteJSON(map[string]interface{}{
-	// 		"status":  "Starting Bidirectional",
-	// 		"message": "Initializing search algorithm",
-	// 	})
-	// 	recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), maxRecipeInput)
-	// }
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
