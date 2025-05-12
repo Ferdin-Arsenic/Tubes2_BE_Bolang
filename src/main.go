@@ -120,19 +120,20 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		} else {
 			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
-	} else if reqData.Algorithm == "BID" {
-
-		conn.WriteJSON(map[string]interface{}{
-			"status":  "Starting Bidirectional Search",
-			"message": "Initializing search algorithm",
-		})
-
-		if reqData.LiveUpdate {
-			recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
-		} else {
-			recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
-		}
 	}
+	// } else if reqData.Algorithm == "BID" {
+
+	// 	conn.WriteJSON(map[string]interface{}{
+	// 		"status":  "Starting Bidirectional Search",
+	// 		"message": "Initializing search algorithm",
+	// 	})
+
+	// 	if reqData.LiveUpdate {
+	// 		recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
+	// 	} else {
+	// 		recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+	// 	}
+	// }
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
