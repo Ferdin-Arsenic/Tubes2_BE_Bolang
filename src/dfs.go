@@ -12,23 +12,20 @@ type AlgoData struct {
 	initialTarget string
 	maxRecipes    int
 	cache map[string][]TreeNode
+	treesSignature map[string]bool
 	nodeCounter int64
 }
 
-func dfsMultiple(target string, maxRecipes int, cached bool) ([]TreeNode, int) {
+func dfsMultiple(target string, maxRecipes int) ([]TreeNode, int) {
 	AlgoData := AlgoData{
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
-		cache:         make(map[string][]TreeNode), // Cache stores []TreeNode
-		nodeCounter: 0,
+		cache:         make(map[string][]TreeNode),
+		nodeCounter:   0,
 	}
 
 	var resultTrees []TreeNode
-	if cached{
-		resultTrees = AlgoData.dfsRecursiveCached(strings.ToLower(target))
-	} else {
-		resultTrees = AlgoData.dfsRecursiveMultithread(strings.ToLower(target))
-	}
+	resultTrees = AlgoData.dfsRecursiveMultithread(strings.ToLower(target))
 
 	if maxRecipes > 0 && len(resultTrees) > maxRecipes {
 		return resultTrees[:maxRecipes], int(AlgoData.nodeCounter)
@@ -36,98 +33,6 @@ func dfsMultiple(target string, maxRecipes int, cached bool) ([]TreeNode, int) {
 	return resultTrees, int(AlgoData.nodeCounter)
 }
 
-func (d *AlgoData) dfsRecursiveCached(currElement string) []TreeNode {
-	d.nodeCounter++
-	currElement = strings.ToLower(currElement)
-
-	if cachedResult, found := d.cache[currElement]; found {
-		return cachedResult
-	}
-
-	elemDetails, exists := elementMap[currElement]
-	if !exists {
-		d.cache[currElement] = []TreeNode{}
-		return []TreeNode{}
-	}
-
-	if isBasicElement(elemDetails.Name) {
-		leafNode := TreeNode{Name: elemDetails.Name}
-		basicTreeList := []TreeNode{leafNode}
-		d.cache[currElement] = basicTreeList
-		return basicTreeList
-	}
-
-	if len(elemDetails.Recipes) == 0 {
-		leafNode := TreeNode{Name: elemDetails.Name}
-		noRecipeTreeList := []TreeNode{leafNode}
-		d.cache[currElement] = noRecipeTreeList
-		return noRecipeTreeList
-	}
-
-	var operationalLimit int
-	if d.maxRecipes <= 0 {
-		operationalLimit = 0
-	} else {
-		operationalLimit = 100000
-	}
-
-	allPossibleTreesForCurrentElement := make([]TreeNode, 0)
-	productTier := elemDetails.Tier
-
-recipePairLoop:
-	for _, recipePair := range elemDetails.Recipes {
-		if len(recipePair) != 2 {
-			continue
-		}
-		parent1Name := strings.ToLower(recipePair[0])
-		parent2Name := strings.ToLower(recipePair[1])
-
-		elemParent1, p1Exists := elementMap[parent1Name]
-		elemParent2, p2Exists := elementMap[parent2Name]
-
-		if !p1Exists || !p2Exists {
-			continue
-		}
-		if elemParent1.Tier >= productTier || elemParent2.Tier >= productTier {
-			continue
-		}
-		if strings.Contains(elemParent1.Name, "fanon") || strings.Contains(elemParent2.Name, "fanon") {
-			continue
-		}
-
-		subTreesForParent1 := d.dfsRecursiveCached(parent1Name)
-		if !isBasicElement(elemParent1.Name) && len(subTreesForParent1) == 0 {
-			continue
-		}
-
-		subTreesForParent2 := d.dfsRecursiveCached(parent2Name)
-		if !isBasicElement(elemParent2.Name) && len(subTreesForParent2) == 0 {
-			continue
-		}
-
-	combinationLoop:
-		for _, treeP1 := range subTreesForParent1 { 
-			for _, treeP2 := range subTreesForParent2 { 
-				if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
-					break combinationLoop
-				}
-
-				newNode := TreeNode{
-					Name:     elemDetails.Name,
-					Children: []TreeNode{treeP1, treeP2},
-				}
-				allPossibleTreesForCurrentElement = append(allPossibleTreesForCurrentElement, newNode)
-			}
-		}
-
-		if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
-			break recipePairLoop
-		}
-	}
-
-	d.cache[currElement] = allPossibleTreesForCurrentElement
-	return allPossibleTreesForCurrentElement
-}
 
 func (d *AlgoData) dfsRecursiveMultithread(currElement string) []TreeNode {
 	atomic.AddInt64(&d.nodeCounter, 1)
@@ -158,7 +63,7 @@ func (d *AlgoData) dfsRecursiveMultithread(currElement string) []TreeNode {
 		operationalLimit = 100000
 	}
 
-	allPossibleTreesForCurrentElement := make([]TreeNode, 0)
+	currTreeCombinations := make([]TreeNode, 0)
 	productTier := elemDetails.Tier
 
 recipePairLoop:
@@ -212,7 +117,7 @@ recipePairLoop:
 	combinationLoop:
 		for _, treeP1 := range subTreesForParent1 { 
 			for _, treeP2 := range subTreesForParent2 { 
-				if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
+				if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
 					break combinationLoop
 				}
 
@@ -220,23 +125,23 @@ recipePairLoop:
 					Name:     elemDetails.Name,
 					Children: []TreeNode{treeP1, treeP2},
 				}
-				allPossibleTreesForCurrentElement = append(allPossibleTreesForCurrentElement, newNode)
+				currTreeCombinations = append(currTreeCombinations, newNode)
 			}
 		}
 
-		if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
+		if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
 			break recipePairLoop
 		}
 	}
 
-	return allPossibleTreesForCurrentElement
+	return currTreeCombinations
 }
 
 func dfsMultipleLive(target string, maxRecipes int, delay int, conn *websocket.Conn) ([]TreeNode, int) {
 	AlgoData := AlgoData{
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
-		cache:         make(map[string][]TreeNode), // Cache stores []TreeNode
+		cache:         make(map[string][]TreeNode),
 		nodeCounter: 0,
 	}
 
@@ -291,7 +196,7 @@ func (d *AlgoData) dfsRecursiveLive(currElement string, delay int, conn *websock
 		}
 	}
 
-	allPossibleTreesForCurrentElement := make([]TreeNode, 0)
+	currTreeCombinations := make([]TreeNode, 0)
 	productTier := elemDetails.Tier
 
 recipePairLoop:
@@ -328,7 +233,7 @@ recipePairLoop:
 	combinationLoop:
 		for _, treeP1 := range subTreesForParent1 { 
 			for _, treeP2 := range subTreesForParent2 { 
-				if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
+				if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
 					break combinationLoop
 				}
 
@@ -336,11 +241,11 @@ recipePairLoop:
 					Name:     elemDetails.Name,
 					Children: []TreeNode{treeP1, treeP2},
 				}
-				allPossibleTreesForCurrentElement = append(allPossibleTreesForCurrentElement, newNode)
+				currTreeCombinations = append(currTreeCombinations, newNode)
 			}
 		}
 
-		if operationalLimit > 0 && len(allPossibleTreesForCurrentElement) >= operationalLimit {
+		if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
 			break recipePairLoop
 		}
 	}
@@ -349,11 +254,11 @@ recipePairLoop:
 		"status":   "Progress",
 		"message":  "Finding " + elemDetails.Name + " trees",
 		"duration": 0,
-		"treeData": allPossibleTreesForCurrentElement,
+		"treeData": currTreeCombinations,
 		"nodesVisited": d.nodeCounter,
 	})
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 
-	d.cache[currElement] = allPossibleTreesForCurrentElement
-	return allPossibleTreesForCurrentElement
+	d.cache[currElement] = currTreeCombinations
+	return currTreeCombinations
 }

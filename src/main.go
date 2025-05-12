@@ -109,7 +109,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if reqData.LiveUpdate {
 			recipePlans, nodesVisited = dfsMultipleLive(strings.ToLower(reqData.Target), maxRecipeInput, reqData.Delay, conn)
 		} else {
-			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), maxRecipeInput, false)
+			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), maxRecipeInput)
 		}
 	}
 	// } else if reqData.Algorithm == "BID" {
@@ -123,7 +123,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
-	fmt.Println("Unique Trees: ", CountUniqueTrees(recipePlans))
 	
 	if len(recipePlans) == 0 {
 		conn.WriteJSON(map[string]interface{}{
