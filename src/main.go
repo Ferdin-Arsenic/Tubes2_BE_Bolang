@@ -128,9 +128,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			// recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 		} else {
-			recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			// recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 	}
 
