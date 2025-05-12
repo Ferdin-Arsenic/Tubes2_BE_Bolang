@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type RecipeStep struct {
@@ -249,4 +252,68 @@ func canonicalizeTree(node TreeNode) string {
 	}
 	sort.Strings(childrenStr)
 	return fmt.Sprintf("%s(%s)", node.Name, strings.Join(childrenStr, ","))
+}
+
+func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes int, delay int, conn *websocket.Conn) []TreeNode {
+	target = strings.ToLower(target)
+	seenPathKeys = make(map[string]bool)
+
+	if isBasicElement(target) {
+		return []TreeNode{{Name: capitalize(target)}}
+	}
+	if elem, ok := elementMap[target]; !ok || len(elem.Recipes) == 0 {
+		return []TreeNode{}
+	}
+
+	queue := createInitialQueueItems(target, elementMap)
+	results := []TreeNode{}
+	fingerprints := make(map[string]bool)
+
+	for len(queue) > 0 && len(results) < maxRecipes {
+		curr := queue[0]
+		queue = queue[1:]
+
+		if curr.Depth > bfsMaxDepth {
+			continue
+		}
+
+		if len(curr.Open) == 0 {
+			key := pathToStringKey(curr.Path)
+			if seenPathKeys[key] || isStructuralDuplicate(curr.Path, elementMap) {
+				continue
+			}
+			seenPathKeys[key] = true
+
+			tree := buildTreeFromSteps(target, curr.Path, elementMap)
+			fp := canonicalizeTree(tree)
+			if !fingerprints[fp] {
+				fingerprints[fp] = true
+				results = append(results, tree)
+
+				conn.WriteJSON(map[string]interface{}{
+					"status":       "Progress",
+					"message":      "Finding trees",
+					"treeData":     []TreeNode{tree},
+					"nodesVisited": 0,
+				})
+				fmt.Println("Live update sent")
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+			}
+			continue
+		}
+
+		for openElem := range curr.Open {
+			queue = append(queue, expandOpenElement(openElem, curr, elementMap)...)
+			break
+		}
+
+		if len(queue) > bfsMaxQueueSize {
+			sort.Slice(queue, func(i, j int) bool {
+				return queue[i].Depth < queue[j].Depth
+			})
+			queue = queue[:bfsMaxQueueSize]
+		}
+	}
+
+	return results
 }

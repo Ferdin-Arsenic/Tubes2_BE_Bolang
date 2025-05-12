@@ -91,8 +91,6 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	var recipePlans []TreeNode
 
 	var nodesVisited int
-	_ = nodesVisited
-
 	startTime := time.Now()
 	fmt.Printf("Delay: %d\n", reqData.Delay)
 
@@ -118,9 +116,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans, nodesVisited = dfsMultipleLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
+			recipePlans, nodesVisited = dfsMultipleLive(strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 		} else {
-			recipePlans, nodesVisited = dfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 	} else if reqData.Algorithm == "BID" {
 
@@ -130,9 +128,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
+			recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		} else {
-			recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			recipePlans = bidirectionalMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 	}
 

@@ -2,17 +2,18 @@ package main
 
 import (
 	"strings"
-	"github.com/gorilla/websocket"
-	"time"
-	"sync/atomic"
 	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type AlgoData struct {
 	initialTarget string
 	maxRecipes    int
-	cache map[string][]TreeNode
-	nodeCounter int64
+	cache         map[string][]TreeNode
+	nodeCounter   int64
 }
 
 func dfsMultiple(target string, maxRecipes int) ([]TreeNode, int) {
@@ -30,7 +31,6 @@ func dfsMultiple(target string, maxRecipes int) ([]TreeNode, int) {
 	}
 	return resultTrees, int(AlgoData.nodeCounter)
 }
-
 
 func (d *AlgoData) dfsRecursive(currElement string) []TreeNode {
 	atomic.AddInt64(&d.nodeCounter, 1)
@@ -56,7 +56,7 @@ func (d *AlgoData) dfsRecursive(currElement string) []TreeNode {
 	currTreeCombinations := make([]TreeNode, 0)
 	productTier := elemDetails.Tier
 
-	recipePairLoop:
+recipePairLoop:
 	for _, recipePair := range elemDetails.Recipes {
 		if len(recipePair) != 2 {
 			continue
@@ -88,14 +88,18 @@ func (d *AlgoData) dfsRecursive(currElement string) []TreeNode {
 			defer wg.Done()
 			subTreesForParent2 = d.dfsRecursive(parent2Name)
 		}()
-		
-		wg.Wait()
-		if !isBasicElement(elemParent1.Name) && len(subTreesForParent1) == 0 {continue}
-		if !isBasicElement(elemParent2.Name) && len(subTreesForParent2) == 0 {continue}
 
-		combinationLoop:
-		for _, treeP1 := range subTreesForParent1 { 
-			for _, treeP2 := range subTreesForParent2 { 
+		wg.Wait()
+		if !isBasicElement(elemParent1.Name) && len(subTreesForParent1) == 0 {
+			continue
+		}
+		if !isBasicElement(elemParent2.Name) && len(subTreesForParent2) == 0 {
+			continue
+		}
+
+	combinationLoop:
+		for _, treeP1 := range subTreesForParent1 {
+			for _, treeP2 := range subTreesForParent2 {
 				if d.maxRecipes > 0 && len(currTreeCombinations) >= d.maxRecipes {
 					break combinationLoop
 				}
@@ -120,7 +124,7 @@ func dfsMultipleLive(target string, maxRecipes int, delay int, conn *websocket.C
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
 		cache:         make(map[string][]TreeNode),
-		nodeCounter: 0,
+		nodeCounter:   0,
 	}
 
 	resultTrees := AlgoData.dfsRecursiveLive(strings.ToLower(target), delay, conn)
@@ -209,8 +213,8 @@ recipePairLoop:
 		}
 
 	combinationLoop:
-		for _, treeP1 := range subTreesForParent1 { 
-			for _, treeP2 := range subTreesForParent2 { 
+		for _, treeP1 := range subTreesForParent1 {
+			for _, treeP2 := range subTreesForParent2 {
 				if operationalLimit > 0 && len(currTreeCombinations) >= operationalLimit {
 					break combinationLoop
 				}
@@ -229,10 +233,10 @@ recipePairLoop:
 	}
 
 	conn.WriteJSON(map[string]interface{}{
-		"status":   "Progress",
-		"message":  "Finding " + elemDetails.Name + " trees",
-		"duration": 0,
-		"treeData": currTreeCombinations,
+		"status":       "Progress",
+		"message":      "Finding " + elemDetails.Name + " trees",
+		"duration":     0,
+		"treeData":     currTreeCombinations,
 		"nodesVisited": d.nodeCounter,
 	})
 	time.Sleep(time.Duration(delay) * time.Millisecond)
