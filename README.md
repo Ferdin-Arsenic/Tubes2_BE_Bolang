@@ -3,7 +3,7 @@
 <h3 align="center">Pemanfaatan Algoritma BFS dan DFS dalam Pencarian Recipe pada Permainan</h3>
 
 <p align="center">
-  <img src="game.png" alt="Main" width="400">
+  <img src="doc/main.png" alt="Main" width="700">
 </p>
 
 ## Table of Contents
@@ -15,11 +15,15 @@
 - [References](#references)
 
 ## Description
-This program is a web application for 
+This program is a web application for a Little Alchemy 2 element recipe finder. The application utilizes graph traversal methods such as Breadth-First Search, Depth-First Search, and Bidirectional Search to look for elements required to create your targe element. The resulting recipe will be visualized, with a live update visualization available as an option. 
 
 ## Algorithms Implemented
 ### 1. BFS
+Breadth-First Search is implemented
+
 ### 2. DFS
+Depth-First Search is implemented using recursion calls, where each valid nodes are added on to the tree, and each recipe elements will then be processed through recursion.
+
 ### 3. Bidirectional
 
 ## Program Structure
