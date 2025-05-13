@@ -14,6 +14,11 @@
 - [Author](#author)
 - [References](#references)
 
+## Table of Contents
+- [Backend Repository](https://github.com/Ferdin-Arsenic/Tubes2_BE_Bolang)
+- [Frontent Repository](https://github.com/azfaradhi/Tubes2_FE_Bolang)
+- [Youtube Demo](https://www.youtube.com/watch?v=Iq1JeTXSvfU)
+
 ## Description
 This program is a web application for a Little Alchemy 2 element recipe finder. The application utilizes graph traversal methods such as Breadth-First Search, Depth-First Search, and Bidirectional Search to look for elements required to create your targe element. The resulting recipe will be visualized, with a live update visualization available as an option. 
 
