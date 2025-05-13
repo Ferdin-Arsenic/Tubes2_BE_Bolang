@@ -19,12 +19,13 @@ This program is a web application for a Little Alchemy 2 element recipe finder. 
 
 ## Algorithms Implemented
 ### 1. BFS
-Breadth-First Search is implemented
+Breadth-First Search is implemented using search queues to keep track of nodes to visit, once the queues contain only basic elements, the recipe tree is saved.
 
 ### 2. DFS
 Depth-First Search is implemented using recursion calls, where each valid nodes are added on to the tree, and each recipe elements will then be processed through recursion.
 
 ### 3. Bidirectional
+Bidirectional Search is done using BFS in two directions, forward search that starts with 4 basic elements, and backward search that starts at the target element. Once both directions meet, the nodes are combined to form the recipe tree
 
 ## Program Structure
 ### Backend
