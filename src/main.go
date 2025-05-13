@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
-	"os"
 
 	"github.com/gorilla/websocket"
 )
@@ -129,11 +129,10 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// 		"message": "Initializing search algorithm",
 	// 	})
 
-		if reqData.LiveUpdate {
-			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
-		} else {
-			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
-		}
+	if reqData.LiveUpdate {
+		recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
+	} else {
+		recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
 	}
 
 	elapsed := time.Since(startTime)
@@ -178,7 +177,6 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-
 func isBasicElement(name string) bool {
 	for _, b := range basicElements {
 		if strings.ToLower(name) == strings.ToLower(b) {
@@ -195,7 +193,7 @@ func capitalize(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-func formatTime(time string) string{
+func formatTime(time string) string {
 	result := ""
 	for i, char := range time {
 		if i != len(time)-1 && char == 'm' && (string(time[i])+string(time[i+1])) != "ms" {
