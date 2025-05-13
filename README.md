@@ -1,6 +1,6 @@
 # <h1 align="center">Tugas Besar 2 IF2211 Strategi Algoritma</h1>
 <h2 align="center">Semester II tahun 2024/2025</h2>
-<h3 align="center">Pemanfaatan Algoritma BFS dan DFS dalam Pencarian Recipe pada Permainan</h3>
+<h3 align="center">Recipe Search in Little Alchemy 2 Using BFS and DFS</h3>
 
 <p align="center">
   <img src="doc/main.png" alt="Main" width="700">
@@ -187,7 +187,7 @@ NEXT_PUBLIC_LOCAL_WEBSOCKET_URL=ws://localhost:8080/ws
 Open your terminal in the root directory (where the `docker-compose.yml` file is located), and run:
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 Once the build is complete, the application will be available at:  
