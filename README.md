@@ -199,7 +199,7 @@ Once the build is complete, the application will be available at:
 ## Author
 | **NIM**  | **Nama Anggota**               | **Github** |
 | -------- | ------------------------------ | ---------- |
-| 13523025 | M. Rayhan Farrukh              | [grwna](https://github.com/grwna) |
+| 13523035 | M. Rayhan Farrukh              | [grwna](https://github.com/grwna) |
 | 13523115 | Azfa Radhiyya Hakim            | [azfaradhi](https://github.com/azfaradhi) | 
 | 13523117 | Ferdin Arsenarendra Purtadi    | [Ferdin-Arsenic](https://github.com/Ferdin-Arsenic) |
 
