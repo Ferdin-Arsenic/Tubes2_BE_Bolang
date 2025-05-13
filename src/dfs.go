@@ -5,11 +5,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"github.com/gorilla/websocket"
 )
 
-type AlgoData struct {
+type DFSData struct {
 	initialTarget string
 	maxRecipes    int
 	cache         map[string][]TreeNode
@@ -17,22 +16,22 @@ type AlgoData struct {
 }
 
 func dfsMultiple(target string, maxRecipes int) ([]TreeNode, int) {
-	AlgoData := AlgoData{
+	DFSData := DFSData {
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
 		nodeCounter:   0,
 	}
 
 	var resultTrees []TreeNode
-	resultTrees = AlgoData.dfsRecursive(strings.ToLower(target))
+	resultTrees = DFSData.dfsRecursive(strings.ToLower(target))
 
 	if maxRecipes > 0 && len(resultTrees) > maxRecipes {
-		return resultTrees[:maxRecipes], int(AlgoData.nodeCounter)
+		return resultTrees[:maxRecipes], int(DFSData.nodeCounter)
 	}
-	return resultTrees, int(AlgoData.nodeCounter)
+	return resultTrees, int(DFSData.nodeCounter)
 }
 
-func (d *AlgoData) dfsRecursive(currElement string) []TreeNode {
+func (d *DFSData) dfsRecursive(currElement string) []TreeNode {
 	atomic.AddInt64(&d.nodeCounter, 1)
 	currElement = strings.ToLower(currElement)
 
@@ -120,22 +119,22 @@ recipePairLoop:
 }
 
 func dfsMultipleLive(target string, maxRecipes int, delay int, conn *websocket.Conn) ([]TreeNode, int) {
-	AlgoData := AlgoData{
+	DFSData := DFSData{
 		initialTarget: strings.ToLower(target),
 		maxRecipes:    maxRecipes,
 		cache:         make(map[string][]TreeNode),
 		nodeCounter:   0,
 	}
 
-	resultTrees := AlgoData.dfsRecursiveLive(strings.ToLower(target), delay, conn)
+	resultTrees := DFSData.dfsRecursiveLive(strings.ToLower(target), delay, conn)
 
 	if maxRecipes > 0 && len(resultTrees) > maxRecipes {
-		return resultTrees[:maxRecipes], int(AlgoData.nodeCounter)
+		return resultTrees[:maxRecipes], int(DFSData.nodeCounter)
 	}
-	return resultTrees, int(AlgoData.nodeCounter)
+	return resultTrees, int(DFSData.nodeCounter)
 }
 
-func (d *AlgoData) dfsRecursiveLive(currElement string, delay int, conn *websocket.Conn) []TreeNode {
+func (d *DFSData) dfsRecursiveLive(currElement string, delay int, conn *websocket.Conn) []TreeNode {
 	d.nodeCounter++
 	currElement = strings.ToLower(currElement)
 

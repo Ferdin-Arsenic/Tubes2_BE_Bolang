@@ -128,9 +128,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 
 		if reqData.LiveUpdate {
-			// recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
+			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
 		} else {
-			// recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
 		}
 	}
 
@@ -150,7 +150,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn.WriteJSON(map[string]interface{}{
 		"status":   "Completed",
 		"message":  fmt.Sprintf("Found %d recipe plans", len(recipePlans)),
-		"duration": elapsed.String(),
+		"duration": formatTime(elapsed.String()),
 		"treeData": recipePlans,
 		"nodes":    nodesVisited,
 	})
@@ -185,4 +185,16 @@ func capitalize(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func formatTime(time string) string{
+	result := ""
+	for i, char := range time {
+		if i != len(time)-1 && char == 'm' && (string(time[i])+string(time[i+1])) != "ms" {
+			result += "m "
+		} else {
+			result += string(char)
+		}
+	}
+	return result
 }
