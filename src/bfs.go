@@ -21,7 +21,7 @@ type RecipeStep struct {
 
 type BuildQueueItem struct {
 	Path  []RecipeStep
-	Open  map[string]bool // elements that still need recipes
+	Open  map[string]bool
 	Depth int
 }
 
@@ -474,8 +474,9 @@ func canonicalizeTree(node TreeNode) string {
 // Fungsi live update untuk WebSocket
 func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes int, delay int, conn *websocket.Conn) []TreeNode {
 	target = strings.ToLower(target)
-	pathKeys := newSafePathKeys()
 	counter := &Counter{}
+	pathKeys := newSafePathKeys()
+	results := newSafeResults(maxRecipes)
 
 	if isBasicElement(target) {
 		return []TreeNode{{Name: capitalize(target)}}
@@ -486,84 +487,78 @@ func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes in
 	}
 
 	queue := newSafeQueue()
-	results := newSafeResults(maxRecipes)
+	queue.Push(createInitialQueueItems(target, elementMap)...)
 
-	// Update websocket dengan status awal
 	conn.WriteJSON(map[string]interface{}{
 		"status":       "Starting",
-		"message":      "Initializing search",
+		"message":      "Initializing single-threaded BFS...",
 		"treeData":     []TreeNode{},
 		"nodesVisited": 0,
 	})
 
-	// Inisialisasi queue dengan recipe awal
-	queue.Push(createInitialQueueItems(target, elementMap)...)
+	previewSent := make(map[string]bool)
 
-	// Channel untuk hasil yang ditemukan
-	resultChan := make(chan TreeNode, maxRecipes)
-	done := make(chan struct{})
+	for queue.Length() > 0 && !results.IsFull() {
+		items := queue.Pop(1)
+		if len(items) == 0 {
+			break
+		}
+		curr := items[0]
+		counter.Increment()
 
-	// Buat mutex untuk sinkronisasi websocket
-	var wsMutex sync.Mutex
-
-	// Goroutine untuk monitor progress dan kirim update WebSocket
-	go func() {
-		lastCount := 0
-		for {
-			select {
-			case <-done:
-				return
-			case tree := <-resultChan:
-				wsMutex.Lock()
+		if len(curr.Path) > 0 {
+			lastStep := curr.Path[len(curr.Path)-1]
+			previewKey := pathToStringKey([]RecipeStep{lastStep})
+			if !previewSent[previewKey] {
+				tree := buildTreeFromSteps(lastStep.Element, []RecipeStep{lastStep}, elementMap)
 				conn.WriteJSON(map[string]interface{}{
-					"status":       "Progress",
-					"message":      "Finding trees",
+					"status":       "Preview",
+					"message":      "Discovered: " + capitalize(lastStep.Element),
 					"treeData":     []TreeNode{tree},
 					"nodesVisited": counter.Get(),
 				})
-				wsMutex.Unlock()
-				fmt.Println("Live update sent")
 				time.Sleep(time.Duration(delay) * time.Millisecond)
-			default:
-				// Kirim update progress setiap 500ms jika ada perubahan signifikan
-				time.Sleep(500 * time.Millisecond)
-				currentCount := counter.Get()
-				if currentCount-lastCount > 1000 {
-					wsMutex.Lock()
-					conn.WriteJSON(map[string]interface{}{
-						"status":       "Searching",
-						"message":      fmt.Sprintf("Explored %d nodes, found %d recipes", currentCount, results.Count()),
-						"nodesVisited": currentCount,
-					})
-					wsMutex.Unlock()
-					lastCount = currentCount
-				}
+				previewSent[previewKey] = true
 			}
 		}
-	}()
 
-	var wg sync.WaitGroup
+		if curr.Depth > bfsMaxDepth {
+			continue
+		}
 
-	// Buat worker untuk mencari recipes
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go liveWorker(queue, results, pathKeys, elementMap, target, counter, resultChan, &wg, done)
+		if len(curr.Open) == 0 {
+			key := pathToStringKey(curr.Path)
+			if pathKeys.Check(key) || isStructuralDuplicate(curr.Path, elementMap, pathKeys) {
+				continue
+			}
+			pathKeys.Add(key)
+
+			fp := canonicalizeSteps(curr.Path, elementMap)
+			if !results.Add(TreeNode{}, fp) {
+				continue
+			}
+
+			tree := buildTreeFromSteps(target, curr.Path, elementMap)
+			results.trees[len(results.trees)-1] = tree
+
+			conn.WriteJSON(map[string]interface{}{
+				"status":       "Final",
+				"message":      "Final tree found!",
+				"treeData":     []TreeNode{tree},
+				"nodesVisited": counter.Get(),
+			})
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+			continue
+		}
+
+		for openElem := range curr.Open {
+			queue.Push(expandOpenElement(openElem, curr, elementMap)...)
+			break
+		}
+
+		queue.PruneLargeWithPriority()
 	}
 
-	// Goroutine untuk monitor kondisi selesai
-	go func() {
-		for {
-			time.Sleep(100 * time.Millisecond)
-			if (queue.Length() == 0 && results.Count() > 0) || results.IsFull() {
-				close(done) // Signal all workers to finish
-				break
-			}
-		}
-	}()
-
-	wg.Wait()
-
-	// Update websocket dengan status akhir
 	conn.WriteJSON(map[string]interface{}{
 		"status":       "Completed",
 		"message":      fmt.Sprintf("Found %d recipes, explored %d nodes", results.Count(), counter.Get()),
@@ -571,65 +566,6 @@ func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes in
 	})
 
 	return results.GetTrees()
-}
-
-func liveWorker(queue *SafeQueue, results *SafeResults, pathKeys *SafePathKeys,
-	elementMap map[string]Element, target string, counter *Counter,
-	resultChan chan<- TreeNode, wg *sync.WaitGroup, done chan struct{}) {
-	defer wg.Done()
-
-	for {
-		select {
-		case <-done:
-			return
-		default:
-			items := queue.Pop(batchSize)
-			if items == nil || len(items) == 0 {
-				runtime.Gosched()
-				continue
-			}
-
-			for _, curr := range items {
-				counter.Increment()
-
-				if curr.Depth > bfsMaxDepth {
-					continue
-				}
-
-				if len(curr.Open) == 0 {
-					key := pathToStringKey(curr.Path)
-					if pathKeys.Check(key) || isStructuralDuplicate(curr.Path, elementMap, pathKeys) {
-						continue
-					}
-					pathKeys.Add(key)
-
-					fp := canonicalizeSteps(curr.Path, elementMap)
-					if !results.Add(TreeNode{}, fp) {
-						continue
-					}
-
-					tree := buildTreeFromSteps(target, curr.Path, elementMap)
-					results.mutex.Lock()
-					results.trees[len(results.trees)-1] = tree
-					results.mutex.Unlock()
-
-					resultChan <- tree
-					if results.IsFull() {
-						return
-					}
-					continue
-				}
-
-				// Expand first open element
-				for openElem := range curr.Open {
-					queue.Push(expandOpenElement(openElem, curr, elementMap)...)
-					break
-				}
-
-				queue.PruneLargeWithPriority()
-			}
-		}
-	}
 }
 
 func canonicalizeSteps(steps []RecipeStep, elementMap map[string]Element) string {

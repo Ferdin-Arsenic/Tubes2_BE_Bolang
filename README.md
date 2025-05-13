@@ -14,7 +14,7 @@
 - [Author](#author)
 - [References](#references)
 
-## Table of Contents
+## Resources
 - [Backend Repository](https://github.com/Ferdin-Arsenic/Tubes2_BE_Bolang)
 - [Frontent Repository](https://github.com/azfaradhi/Tubes2_FE_Bolang)
 - [Youtube Demo](https://www.youtube.com/watch?v=Iq1JeTXSvfU)
