@@ -105,10 +105,95 @@ Depth-First Search is implemented using recursion calls, where each valid nodes 
 
 
 ## Requirements & Installation
-Before running the application, make sure the following dependencies are installed:
-### Requirements:
-### Installation and Running the Program:
-1. Download and Install Dependencies:
+
+Before running the application, you have two options:
+
+### 1. Use the Website Directly
+You can access the live version of the application [here](https://alchemy-bolang.vercel.app/).
+
+### 2. Run It Locally
+If you prefer to run the application locally, follow these steps:
+
+---
+
+## Clone the Repositories
+
+**Frontend**
+```bash
+git clone https://github.com/azfaradhi/Tubes2_FE_Bolang
+```
+
+**Backend**
+```bash
+git clone https://github.com/Ferdin-Arsenic/Tubes2_BE_Bolang
+```
+
+> Make sure to place both repositories in the **same root directory**.
+
+---
+
+### ⚙️ Create `docker-compose.yml`
+
+Create a file named `docker-compose.yml` in the root directory (the folder containing both frontend and backend repos), and add the following content:
+
+```yaml
+version: "3.8"
+
+services:
+  frontend:
+    build:
+      context: ./Tubes2_FE_Bolang
+      args:
+        NODE_ENV: development
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_ENVIRONMENT=local
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./Tubes2_BE_Bolang
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+```
+
+This setup will automatically install all required dependencies.
+
+---
+
+### 📄 Add `.env` File for Frontend
+
+Inside the `Tubes2_FE_Bolang` directory, create a file named `.env` and add the following content:
+
+```env
+NEXT_PUBLIC_ENVIRONMENT=local
+NEXT_PUBLIC_LOCAL_WEBSOCKET_URL=ws://localhost:8080/ws
+```
+
+---
+
+### 🚀 Run the Application
+
+Open your terminal in the root directory (where the `docker-compose.yml` file is located), and run:
+
+```bash
+docker compose up
+```
+
+Once the build is complete, the application will be available at:  
+[http://localhost:3000](http://localhost:3000)
+
+
 
 ## Author
 | **NIM**  | **Nama Anggota**               | **Github** |
