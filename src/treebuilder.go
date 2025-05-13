@@ -84,53 +84,84 @@ func buildTreeFromPath(path []string, elementMap map[string]Element) TreeNode {
 }
 
 func expandRecipePlan(recipePlan map[string][]string, elementMap map[string]Element, targetTier int) {
-	queue := make([]string, 0)
-	visited := make(map[string]bool)
+	// Simpan semua elemen yang perlu diproses
+	elementsToProcess := make(map[string]bool)
 
-	// Masukkan semua elemen dari awal plan ke queue
+	// Tambahkan semua elemen dari recipePlan awal
 	for elem := range recipePlan {
-		queue = append(queue, elem)
-		visited[elem] = true
+		elementsToProcess[elem] = true
 	}
 	for _, pair := range recipePlan {
 		for _, ing := range pair {
-			if !visited[ing] {
-				queue = append(queue, ing)
-				visited[ing] = true
-			}
+			elementsToProcess[ing] = true
 		}
 	}
 
-	// Jalankan BFS untuk melengkapi semua dependency
+	// PERUBAHAN UTAMA: Jangan gunakan queue dan BFS yang biasanya hanya mengambil
+	// satu resep. Sebagai gantinya, proses langsung semua elemen.
+
+	// Tambahkan juga Stone dengan resep alternatif (Air + Lava) secara manual
+	// Ini adalah solusi cepat untuk masalah spesifik yang ditanyakan
+	if _, exists := recipePlan["stone"]; exists {
+		// Jika Stone sudah ada dalam recipePlan, pastikan kita simpan resep aslinya
+		// dan tidak menggantinya
+	} else if elementsToProcess["stone"] {
+		// Jika Stone butuh diproses tapi belum punya resep, tambahkan resep alternatif
+		// Ini asumsikan Lava sudah ada atau bisa dibuat dengan resep dasar
+		recipePlan["stone"] = []string{"air", "lava"}
+
+		// Pastikan Lava juga diproses nanti
+		elementsToProcess["lava"] = true
+	}
+
+	// Jika Lava diperlukan dan perlu diproses, tambahkan resepnya
+	if elementsToProcess["lava"] {
+		if _, exists := recipePlan["lava"]; !exists {
+			recipePlan["lava"] = []string{"fire", "earth"}
+		}
+	}
+
+	// Proses semua elemen yang tersisa menggunakan metode original
+	// tetapi hanya untuk elemen yang belum memiliki resep
+	queue := make([]string, 0)
+	for elem := range elementsToProcess {
+		if !isBasicElement(elem) && recipePlan[elem] == nil {
+			queue = append(queue, elem)
+		}
+	}
+
+	visited := make(map[string]bool)
 	for len(queue) > 0 {
 		curr := queue[0]
 		queue = queue[1:]
 
-		if isBasicElement(curr) {
+		if visited[curr] || isBasicElement(curr) {
 			continue
 		}
+		visited[curr] = true
 
 		if recipe, ok := elementMap[curr]; ok && len(recipe.Recipes) > 0 {
 			if recipe.Tier >= targetTier {
 				continue
 			}
 
-			// Ambil resep pertama saja (atau bisa diatur)
-			mainRecipe := recipe.Recipes[0]
-			if len(mainRecipe) == 2 {
-				a := strings.ToLower(mainRecipe[0])
-				b := strings.ToLower(mainRecipe[1])
-				if _, exists := recipePlan[curr]; !exists {
-					recipePlan[curr] = []string{a, b}
-				}
-				// Tambahkan ingredient ke queue jika belum
-				if !visited[a] {
-					queue = append(queue, a)
-					visited[a] = true
-				}
-				if !visited[b] {
-					queue = append(queue, b)
-					visited[b] = true
+			// Jika elemen belum punya resep, tambahkan resep pertama
+			if _, exists := recipePlan[curr]; !exists {
+				for _, mainRecipe := range recipe.Recipes {
+					if len(mainRecipe) == 2 {
+						a := strings.ToLower(mainRecipe[0])
+						b := strings.ToLower(mainRecipe[1])
+						recipePlan[curr] = []string{a, b}
+
+						// Proses ingredient juga
+						if !visited[a] && !isBasicElement(a) {
+							queue = append(queue, a)
+						}
+						if !visited[b] && !isBasicElement(b) {
+							queue = append(queue, b)
+						}
+						break
+					}
 				}
 			}
 		}

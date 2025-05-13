@@ -2,240 +2,323 @@ package main
 
 import (
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
-// Helper function to build a map of which elements can be created from each element
-func buildReverseMap(elementMap map[string]Element) map[string][]string {
-	reverse := make(map[string][]string)
-	for name, elem := range elementMap {
-		for _, recipe := range elem.Recipes {
-			if len(recipe) == 2 {
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-				reverse[a] = append(reverse[a], name)
-				reverse[b] = append(reverse[b], name)
-			}
-		}
-	}
-	return reverse
+type BIDTreeData struct {
+	target       	  string
+	maxRecipes   	  int
+	maxRecipesPerElmt int
+
+	forwardQueue  [][]string        
+	forwardTrees  map[string][]TreeNode
+	forwardDepths map[string]int     
+
+	backwardQueue     [][]string       
+	backwardReached map[string]bool  
+	backwardDepths  map[string]int     
+
+	results        []TreeNode
+	processedTrees map[string]bool
+	resultMutex    sync.Mutex     
+
+	maxDepth 	 int
+	gotoEnd  	 bool
+	nodesVisited int64
 }
 
-// Helper function to reverse a string slice
-func reverseSlice(s []string) []string {
-	result := make([]string, len(s))
-	for i, v := range s {
-		result[len(s)-1-i] = v
+func (b *BIDTreeData) addResult(tree TreeNode) {
+	if b.gotoEnd { return }
+
+	b.resultMutex.Lock()
+	defer b.resultMutex.Unlock()
+
+	if b.gotoEnd || (b.maxRecipes > 0 && len(b.results) >= b.maxRecipes) {
+		b.gotoEnd = true
+		return
 	}
-	return result
+
+	canonical := canonicalizeTree(tree)
+	if !b.processedTrees[canonical] {
+		b.results = append(b.results, tree)
+		b.processedTrees[canonical] = true
+		if b.maxRecipes > 0 && len(b.results) >= b.maxRecipes {
+			b.gotoEnd = true
+		}
+	}
 }
 
-// bidirectionalSearch finds a single shortest path from basic elements to target
-func bidirectionalSearch(elementMap map[string]Element, target string) []string {
-	reverseMap := buildReverseMap(elementMap)
-
-	// forward BFS
-	forwardQueue := [][]string{}
-	forwardVisited := make(map[string][]string)
-
-	for _, basic := range basicElements {
-		forwardQueue = append(forwardQueue, []string{basic})
-		forwardVisited[strings.ToLower(basic)] = []string{basic}
-	}
-
-	// backward BFS
-	backwardQueue := [][]string{{target}}
-	backwardVisited := make(map[string][]string)
-	backwardVisited[strings.ToLower(target)] = []string{target}
-
-	for len(forwardQueue) > 0 && len(backwardQueue) > 0 {
-		// expand forward
-		pathF := forwardQueue[0]
-		forwardQueue = forwardQueue[1:]
-		nodeF := strings.ToLower(pathF[len(pathF)-1])
-
-		if pathB, ok := backwardVisited[nodeF]; ok {
-			// intersection found
-			return append(pathF, reverseSlice(pathB[1:])...)
-		}
-
-		for name, elem := range elementMap {
-			for _, recipe := range elem.Recipes {
-				if len(recipe) != 2 {
-					continue
-				}
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-				if a == nodeF || b == nodeF {
-					if _, seen := forwardVisited[name]; !seen {
-						newPath := append([]string{}, pathF...)
-						newPath = append(newPath, name)
-						forwardQueue = append(forwardQueue, newPath)
-						forwardVisited[name] = newPath
-					}
-				}
-			}
-		}
-
-		// expand backward
-		pathB := backwardQueue[0]
-		backwardQueue = backwardQueue[1:]
-		nodeB := strings.ToLower(pathB[0])
-
-		if pathF, ok := forwardVisited[nodeB]; ok {
-			// intersection found
-			return append(pathF, reverseSlice(pathB[1:])...)
-		}
-
-		for ingredient, elements := range reverseMap {
-			for _, elem := range elements {
-				if nodeB == strings.ToLower(elem) {
-					if _, seen := backwardVisited[ingredient]; !seen {
-						newPath := []string{ingredient}
-						newPath = append(newPath, pathB...)
-						backwardQueue = append(backwardQueue, newPath)
-						backwardVisited[ingredient] = newPath
+func initializeForwardSearch(b *BIDTreeData, elementMap map[string]Element) {
+	var initialForward []string
+	initialMap := make(map[string]bool)
+	for elName := range elementMap {
+		elNameLower := strings.ToLower(elName)
+		if isBasicElement(elNameLower) {
+			if _, ok := elementMap[elNameLower]; ok {
+				tree := TreeNode{Name: capitalize(elNameLower)}
+				if len(b.forwardTrees[elNameLower]) < b.maxRecipesPerElmt {
+					atomic.AddInt64(&b.nodesVisited, 1)
+					b.forwardTrees[elNameLower] = append(b.forwardTrees[elNameLower], tree)
+					b.forwardDepths[elNameLower] = 0
+					if !initialMap[elNameLower] {
+						initialForward = append(initialForward, elNameLower)
+						initialMap[elNameLower] = true
 					}
 				}
 			}
 		}
 	}
-
-	return nil
+	b.forwardQueue[0] = initialForward
 }
 
-// bidirectionalMultiple returns multiple recipe paths in the format required by the tree builder
-func bidirectionalMultiple(elementMap map[string]Element, target string, maxRecipe int) []TreeNode {
-	if isBasicElement(target) {
-		return []TreeNode{{Name: capitalize(target)}}
-	}
-	targetTier := elementMap[strings.ToLower(target)].Tier
+func initializeBackwardSearch(b *BIDTreeData) {
+	b.backwardQueue[0] = []string{b.target}
+	b.backwardReached[b.target] = true
+	b.backwardDepths[b.target] = 0
+	atomic.AddInt64(&b.nodesVisited, 1)
+}
 
-	reverseMap := buildReverseMap(elementMap)
-
-	forwardQueue := [][]string{}
-	forwardVisited := make(map[string][]string)
-	for _, basic := range basicElements {
-		forwardQueue = append(forwardQueue, []string{basic})
-		forwardVisited[strings.ToLower(basic)] = []string{basic}
+func expandForwardLayer(b *BIDTreeData, fLayer int, elementMap map[string]Element) bool {
+	if b.gotoEnd || fLayer >= len(b.forwardQueue) || len(b.forwardQueue[fLayer]) == 0 {
+		return false
 	}
 
-	backwardQueue := [][]string{{target}}
-	backwardVisited := make(map[string][]string)
-	backwardVisited[strings.ToLower(target)] = []string{target}
+	nextForwardLayerElements := make(map[string]bool)
 
-	var results [][]string
+	for potentialProductLower, productElem := range elementMap {
+		if b.gotoEnd { break }
 
-	for len(forwardQueue) > 0 && len(backwardQueue) > 0 && len(results) < maxRecipe {
-		// Expand forward
-		pathF := forwardQueue[0]
-		forwardQueue = forwardQueue[1:]
-		nodeF := strings.ToLower(pathF[len(pathF)-1])
-
-		if pathB, ok := backwardVisited[nodeF]; ok {
-			combined := append(pathF, reverseSlice(pathB[1:])...)
-			if !containsPath(results, combined) {
-				results = append(results, combined)
-			}
+		if len(b.forwardTrees[potentialProductLower]) >= b.maxRecipesPerElmt {
+			continue
+		}
+		if depth, processed := b.forwardDepths[potentialProductLower]; processed && depth < fLayer+1 && len(b.forwardTrees[potentialProductLower]) >= b.maxRecipesPerElmt {
+			continue
 		}
 
-		for name, elem := range elementMap {
-			for _, recipe := range elem.Recipes {
-				if len(recipe) != 2 {
-					continue
-				}
-				if elem.Tier >= targetTier {
+		productTier := productElem.Tier
+		for _, recipe := range productElem.Recipes {
+			if b.gotoEnd { break }
+			if len(recipe) != 2 { continue }
+			p1 := strings.ToLower(recipe[0])
+			p2 := strings.ToLower(recipe[1])
+
+			trees1, ok1 := b.forwardTrees[p1]
+			trees2, ok2 := b.forwardTrees[p2]
+			depth1, depthOk1 := b.forwardDepths[p1]
+			depth2, depthOk2 := b.forwardDepths[p2]
+
+			if ok1 && ok2 && depthOk1 && depthOk2 && (depth1 <= fLayer && depth2 <= fLayer) {
+				eP1, p1Exists := elementMap[p1]
+				eP2, p2Exists := elementMap[p2]
+				if !p1Exists || !p2Exists || eP1.Tier >= productTier || eP2.Tier >= productTier {
 					continue
 				}
 
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-				if a == nodeF || b == nodeF {
-					if _, seen := forwardVisited[strings.ToLower(name)]; !seen {
-						newPath := append([]string{}, pathF...)
-						newPath = append(newPath, name)
-						forwardQueue = append(forwardQueue, newPath)
-						forwardVisited[strings.ToLower(name)] = newPath
+				existingTrees := b.forwardTrees[potentialProductLower]
+				availableSlots := b.maxRecipesPerElmt - len(existingTrees)
+
+				if availableSlots <= 0 {
+					continue
+				}
+
+				var wg sync.WaitGroup
+				combinedChan := make(chan TreeNode, availableSlots)
+				nodesToCombine := len(trees1) * len(trees2)
+				maxCombinations := availableSlots
+				if nodesToCombine < maxCombinations {
+					maxCombinations = nodesToCombine
+				}
+				var combinationCount int32
+
+				wg.Add(len(trees1))
+				for i := range trees1 {
+					go func(t1 TreeNode) {
+						defer wg.Done()
+						for _, t2 := range trees2 {
+							currentCount := atomic.AddInt32(&combinationCount, 1)
+							if currentCount > int32(maxCombinations) {
+								atomic.AddInt32(&combinationCount, -1)
+								return
+							}
+							if b.gotoEnd { return }
+
+							newNode := TreeNode{
+								Name:     capitalize(potentialProductLower),
+								Children: []TreeNode{t1, t2},
+							}
+							combinedChan <- newNode
+						}
+					}(trees1[i])
+				}
+
+				var combinedTrees []TreeNode
+				collectorWg := sync.WaitGroup{}
+				collectorWg.Add(1)
+				go func() {
+					defer collectorWg.Done()
+					for i := 0; i < maxCombinations; i++ {
+						tree, ok := <-combinedChan
+						if !ok {
+							break
+						}
+						combinedTrees = append(combinedTrees, tree)
+					}
+				}()
+
+				wg.Wait()
+				close(combinedChan)
+				collectorWg.Wait()
+
+				if len(combinedTrees) > 0 {
+					b.forwardTrees[potentialProductLower] = append(existingTrees, combinedTrees...)
+
+					if _, depthExists := b.forwardDepths[potentialProductLower]; !depthExists || b.forwardDepths[potentialProductLower] > fLayer+1 {
+						atomic.AddInt64(&b.nodesVisited, 1)
+						b.forwardDepths[potentialProductLower] = fLayer + 1
+					}
+					if len(b.forwardTrees[potentialProductLower]) > 0 {
+						nextForwardLayerElements[potentialProductLower] = true
+					}
+
+					if b.backwardReached[potentialProductLower] {
+						if potentialProductLower == b.target {
+							for _, t := range combinedTrees {
+								b.addResult(t)
+							}
+						}
 					}
 				}
 			}
 		}
+	}
 
-		if len(results) >= maxRecipe {
+	var nextQueue []string
+	for elem := range nextForwardLayerElements {
+		if len(b.forwardTrees[elem]) > 0 {
+			nextQueue = append(nextQueue, elem)
+		}
+	}
+	if len(nextQueue) > 0 {
+		b.forwardQueue = append(b.forwardQueue, nextQueue)
+		return true
+	}
+	return false
+}
+
+func expandBackwardLayer(b *BIDTreeData, bLayer int, elementMap map[string]Element) bool {
+	if b.gotoEnd || bLayer >= len(b.backwardQueue) || len(b.backwardQueue[bLayer]) == 0 {
+		return false
+	}
+
+	nextBackwardLayerElements := make(map[string]bool)
+	currentLayerElements := b.backwardQueue[bLayer]
+
+	for _, elemToExpand := range currentLayerElements {
+		if b.gotoEnd { break }
+		elemDetails, ok := elementMap[elemToExpand]
+		if !ok { continue }
+
+		for _, recipe := range elemDetails.Recipes {
+			if b.gotoEnd { break }
+			if len(recipe) != 2 { continue }
+			p1 := strings.ToLower(recipe[0])
+			p2 := strings.ToLower(recipe[1])
+
+			eP1, ok1 := elementMap[p1]
+			eP2, ok2 := elementMap[p2]
+			if !ok1 || !ok2 || eP1.Tier >= elemDetails.Tier || eP2.Tier >= elemDetails.Tier {
+				continue
+			}
+
+			processBackwardIngredient := func(ing string) {
+				if !b.backwardReached[ing] {
+					atomic.AddInt64(&b.nodesVisited, 1)
+					b.backwardReached[ing] = true
+					b.backwardDepths[ing] = bLayer + 1
+					nextBackwardLayerElements[ing] = true
+					if trees, found := b.forwardTrees[ing]; found {
+						if ing == b.target {
+							for _, t := range trees {
+								b.addResult(t)
+							}
+						}
+					}
+				}
+			}
+
+			processBackwardIngredient(p1)
+			processBackwardIngredient(p2)
+		}
+	}
+
+	var nextQueue []string
+	for elem := range nextBackwardLayerElements {
+		nextQueue = append(nextQueue, elem)
+	}
+	if len(nextQueue) > 0 {
+		b.backwardQueue = append(b.backwardQueue, nextQueue)
+		return true
+	}
+	return false
+}
+
+func bidirectionalMultiple(target string, maxRecipes int, maxRecipesPerElmt int) ([]TreeNode, int) {
+	targetLower := strings.ToLower(target)
+
+	if isBasicElement(targetLower) {
+		return []TreeNode{{Name: capitalize(targetLower)}}, 1
+	}
+	targetElem, exists := elementMap[targetLower]
+	if !exists || len(targetElem.Recipes) == 0 {
+		return []TreeNode{}, 0
+	}
+
+	BIDData := &BIDTreeData{
+		target:            targetLower,
+		maxRecipes:        maxRecipes,
+		maxRecipesPerElmt: maxRecipesPerElmt,
+		forwardQueue:      make([][]string, 1),
+		forwardTrees:      make(map[string][]TreeNode),
+		forwardDepths:     make(map[string]int),
+		backwardQueue:     make([][]string, 1),
+		backwardReached:   make(map[string]bool),
+		backwardDepths:    make(map[string]int),
+		results:           make([]TreeNode, 0),
+		processedTrees:    make(map[string]bool),
+		maxDepth:          20,
+		gotoEnd:           false,
+	}
+
+	initializeForwardSearch(BIDData, elementMap)
+	initializeBackwardSearch(BIDData)
+
+	fLayer, bLayer := 0, 0
+	for fLayer < BIDData.maxDepth && bLayer < BIDData.maxDepth {
+		if BIDData.gotoEnd {
 			break
 		}
 
-		// Expand backward
-		pathB := backwardQueue[0]
-		backwardQueue = backwardQueue[1:]
-		nodeB := strings.ToLower(pathB[0])
-
-		if pathF, ok := forwardVisited[nodeB]; ok {
-			combined := append(pathF, reverseSlice(pathB[1:])...)
-			if !containsPath(results, combined) {
-				results = append(results, combined)
-			}
+		forwardExpanded := expandForwardLayer(BIDData, fLayer, elementMap)
+		if forwardExpanded {
+			fLayer++
 		}
 
-		for ingredient, elements := range reverseMap {
-			for _, elem := range elements {
-				if elementMap[elem].Tier >= targetTier {
-					continue
-				}
+		if BIDData.gotoEnd {
+			break
+		}
 
-				if nodeB == strings.ToLower(elem) {
-					if _, seen := backwardVisited[strings.ToLower(ingredient)]; !seen {
-						newPath := []string{ingredient}
-						newPath = append(newPath, pathB...)
-						backwardQueue = append(backwardQueue, newPath)
-						backwardVisited[strings.ToLower(ingredient)] = newPath
-					}
-				}
-			}
+		backwardExpanded := expandBackwardLayer(BIDData, bLayer, elementMap)
+		if backwardExpanded {
+			bLayer++
+		}
+
+		if !forwardExpanded && !backwardExpanded &&
+		   (fLayer >= len(BIDData.forwardQueue) || len(BIDData.forwardQueue[fLayer]) == 0) &&
+		   (bLayer >= len(BIDData.backwardQueue) || len(BIDData.backwardQueue[bLayer]) == 0) {
+			break
 		}
 	}
 
-	// 🔁 Konversi ke []TreeNode
-	rawMaps := convertPathsToRecipeMaps(results, target, elementMap)
-	recipeMaps := []map[string][]string{}
-	for _, raw := range rawMaps {
-		expandRecipePlan(raw, elementMap, targetTier)
-		recipeMaps = append(recipeMaps, raw)
-	}
-
-	trees := []TreeNode{}
-	for _, recipeMap := range recipeMaps {
-		expandRecipePlan(recipeMap, elementMap, targetTier)
-		tree := buildRecipeTree(
-			strings.ToLower(target),
-			recipeMap,
-			elementMap,
-			make(map[string]bool),
-			make(map[string]TreeNode),
-		)
-		trees = append(trees, tree)
-	}
-
-	return trees
-}
-
-// Helper function to check if two paths are equal
-func pathsAreEqual(path1, path2 []string) bool {
-	if len(path1) != len(path2) {
-		return false
-	}
-	for i := 0; i < len(path1); i++ {
-		if strings.ToLower(path1[i]) != strings.ToLower(path2[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func containsPath(all [][]string, path []string) bool {
-	for _, p := range all {
-		if pathsAreEqual(p, path) {
-			return true
-		}
-	}
-	return false
+	return BIDData.results, int(BIDData.nodesVisited)
 }

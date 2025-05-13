@@ -1,441 +1,648 @@
 package main
 
 import (
+	"fmt"
+	"runtime"
+	"sort"
 	"strings"
-	"github.com/gorilla/websocket"
+	"sync"
 	"time"
-	"log"
+
+	"github.com/gorilla/websocket"
 )
 
-// bfsShortest finds a single shortest path from basic elements to target
-func bfsShortest(elementMap map[string]Element, target string) []string {
-	queue := [][]string{}
-	visited := make(map[string]bool)
+// Struktur data yang sudah ada di files lain tidak perlu didefinisikan ulang
+// Kami menggunakan type RecipeStep yang baru untuk pencarian BFS multi-thread
 
-	for _, basic := range basicElements {
-		queue = append(queue, []string{basic})
-	}
-
-	for len(queue) > 0 {
-		path := queue[0]
-		queue = queue[1:]
-		node := strings.ToLower(path[len(path)-1])
-
-		if visited[node] {
-			continue
-		}
-		visited[node] = true
-
-		if node == target {
-			return path
-		}
-
-		for name, elem := range elementMap {
-			for _, recipe := range elem.Recipes {
-				if len(recipe) != 2 {
-					continue
-				}
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-				if a == node || b == node {
-					newPath := append([]string{}, path...)
-					newPath = append(newPath, name)
-					queue = append(queue, newPath)
-				}
-			}
-		}
-	}
-	return nil
+type RecipeStep struct {
+	Element     string
+	Ingredients []string
 }
 
-func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) []TreeNode {
+type BuildQueueItem struct {
+	Path  []RecipeStep
+	Open  map[string]bool // elements that still need recipes
+	Depth int
+}
+
+// Struktur data thread-safe untuk multithreading BFS
+type SafeQueue struct {
+	queue []BuildQueueItem
+	mutex sync.Mutex
+}
+
+type SafeResults struct {
+	trees        []TreeNode
+	fingerprints map[string]bool
+	mutex        sync.Mutex
+}
+
+type SafePathKeys struct {
+	keys  map[string]bool
+	mutex sync.RWMutex
+}
+
+type Counter struct {
+	count int
+	mutex sync.Mutex
+}
+
+// Konstanta untuk pencarian
+const (
+	bfsMaxDepth     = 500
+	bfsMaxQueueSize = 100000
+	numWorkers      = 16 // Jumlah worker thread
+	batchSize       = 50 // Ukuran batch per worker
+)
+
+// Metode untuk Counter
+func (c *Counter) Increment() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.count++
+}
+
+func (c *Counter) Get() int {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.count
+}
+
+// Metode untuk SafeQueue
+func newSafeQueue() *SafeQueue {
+	return &SafeQueue{
+		queue: []BuildQueueItem{},
+	}
+}
+
+func (sq *SafeQueue) Push(items ...BuildQueueItem) {
+	sq.mutex.Lock()
+	defer sq.mutex.Unlock()
+	sq.queue = append(sq.queue, items...)
+}
+
+func (sq *SafeQueue) Pop(count int) []BuildQueueItem {
+	sq.mutex.Lock()
+	defer sq.mutex.Unlock()
+
+	if len(sq.queue) == 0 {
+		return nil
+	}
+
+	if count > len(sq.queue) {
+		count = len(sq.queue)
+	}
+
+	items := sq.queue[:count]
+	sq.queue = sq.queue[count:]
+	return items
+}
+
+func (sq *SafeQueue) Length() int {
+	sq.mutex.Lock()
+	defer sq.mutex.Unlock()
+	return len(sq.queue)
+}
+
+func (sq *SafeQueue) PruneLarge() {
+	sq.mutex.Lock()
+	defer sq.mutex.Unlock()
+
+	if len(sq.queue) > bfsMaxQueueSize {
+		sort.Slice(sq.queue, func(i, j int) bool {
+			return sq.queue[i].Depth < sq.queue[j].Depth
+		})
+		sq.queue = sq.queue[:bfsMaxQueueSize]
+	}
+}
+
+func (sq *SafeQueue) PruneLargeWithPriority() {
+	sq.mutex.Lock()
+	defer sq.mutex.Unlock()
+
+	if len(sq.queue) > bfsMaxQueueSize {
+		sort.Slice(sq.queue, func(i, j int) bool {
+			return sq.queue[i].Depth+len(sq.queue[i].Open) < sq.queue[j].Depth+len(sq.queue[j].Open)
+		})
+		sq.queue = sq.queue[:bfsMaxQueueSize]
+	}
+}
+
+// Metode untuk SafeResults
+func newSafeResults(maxSize int) *SafeResults {
+	return &SafeResults{
+		trees:        make([]TreeNode, 0, maxSize),
+		fingerprints: make(map[string]bool),
+	}
+}
+
+func (sr *SafeResults) Add(tree TreeNode, fingerprint string) bool {
+	sr.mutex.Lock()
+	defer sr.mutex.Unlock()
+
+	if sr.fingerprints[fingerprint] {
+		return false
+	}
+
+	if len(sr.trees) >= cap(sr.trees) {
+		return false
+	}
+
+	sr.fingerprints[fingerprint] = true
+	sr.trees = append(sr.trees, tree)
+	return true
+}
+
+func (sr *SafeResults) IsFull() bool {
+	sr.mutex.Lock()
+	defer sr.mutex.Unlock()
+	return len(sr.trees) >= cap(sr.trees)
+}
+
+func (sr *SafeResults) GetTrees() []TreeNode {
+	sr.mutex.Lock()
+	defer sr.mutex.Unlock()
+	return sr.trees
+}
+
+func (sr *SafeResults) Count() int {
+	sr.mutex.Lock()
+	defer sr.mutex.Unlock()
+	return len(sr.trees)
+}
+
+// Metode untuk SafePathKeys
+func newSafePathKeys() *SafePathKeys {
+	return &SafePathKeys{
+		keys: make(map[string]bool),
+	}
+}
+
+func (spk *SafePathKeys) Check(key string) bool {
+	spk.mutex.RLock()
+	defer spk.mutex.RUnlock()
+	return spk.keys[key]
+}
+
+func (spk *SafePathKeys) Add(key string) {
+	spk.mutex.Lock()
+	defer spk.mutex.Unlock()
+	spk.keys[key] = true
+}
+
+// Fungsi utama BFS multithreading
+func bfsMultiple(elementMap map[string]Element, target string, maxRecipes int) ([]TreeNode, int) {
 	target = strings.ToLower(target)
+
+	counter := &Counter{}
 
 	if isBasicElement(target) {
-		return []TreeNode{{Name: capitalize(target)}}
+		return []TreeNode{{Name: capitalize(target)}}, counter.Get()
 	}
 
-	// Dapatkan semua resep yang bisa membuat target
-	targetRecipes := [][]string{}
-	if elem, exists := elementMap[target]; exists {
-		for _, recipe := range elem.Recipes {
-			if len(recipe) == 2 {
-				targetRecipes = append(targetRecipes, []string{
-					strings.ToLower(recipe[0]),
-					strings.ToLower(recipe[1]),
-				})
-			}
-		}
+	if elem, ok := elementMap[target]; !ok || len(elem.Recipes) == 0 {
+		return []TreeNode{}, counter.Get()
 	}
 
-	if len(targetRecipes) == 0 {
-		return []TreeNode{}
-	}
-	targetTier := elementMap[target].Tier
-
-	var allResults []TreeNode
-
-	for _, recipe := range targetRecipes {
-		ingredient1 := recipe[0]
-		ingredient2 := recipe[1]
-
-		paths1 := [][]string{}
-		if !isBasicElement(ingredient1) {
-			paths1 = bfsGetPaths(elementMap, ingredient1, maxRecipes, targetTier)
-		} else {
-			paths1 = [][]string{{ingredient1}}
-		}
-
-		paths2 := [][]string{}
-		if !isBasicElement(ingredient2) {
-			paths2 = bfsGetPaths(elementMap, ingredient2, maxRecipes, targetTier)
-		} else {
-			paths2 = [][]string{{ingredient2}}
-		}
-
-		for _, path1 := range paths1 {
-			for _, path2 := range paths2 {
-				if maxRecipes > 0 && len(allResults) >= maxRecipes {
-					return allResults
-				}
-
-				// gabung path jadi recipeMap, lalu build tree
-				recipeMap := combinePathsToRecipe(path1, path2, target, recipe, elementMap, targetTier)
-				if len(recipeMap) > 0 {
-					expandRecipePlan(recipeMap, elementMap, targetTier)
-					tree := buildRecipeTree(
-						target,
-						recipeMap,
-						elementMap,
-						make(map[string]bool),
-						make(map[string]TreeNode),
-					)
-					allResults = append(allResults, tree)
-				}
-			}
-		}
-	}
-
-	if maxRecipes > 0 && len(allResults) > maxRecipes {
-		return allResults[:maxRecipes]
-	}
-	return allResults
+	trees := bfsBuildRecipeTreesParallel(target, elementMap, maxRecipes, counter)
+	fmt.Printf("Total nodes visited: %d\n", counter.Get())
+	return trees, counter.Get()
 }
 
-// bfsMultiple returns multiple recipe paths in the format required by the tree builder
-func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes int, delay int, conn *websocket.Conn) []TreeNode {
-	target = strings.ToLower(target)
+func bfsBuildRecipeTreesParallel(target string, elementMap map[string]Element, maxRecipes int, counter *Counter) []TreeNode {
+	queue := newSafeQueue()
+	results := newSafeResults(maxRecipes)
+	pathKeys := newSafePathKeys()
 
-	if isBasicElement(target) {
-		return []TreeNode{{Name: capitalize(target)}}
+	// Inisialisasi queue dengan recipe awal
+	queue.Push(createInitialQueueItems(target, elementMap)...)
+
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+
+	// Membuat worker goroutines
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go worker(queue, results, pathKeys, elementMap, target, counter, &wg, done)
 	}
 
-	// Dapatkan semua resep yang bisa membuat target
-	targetRecipes := [][]string{}
-	if elem, exists := elementMap[target]; exists {
-		for _, recipe := range elem.Recipes {
-			if len(recipe) == 2 {
-				targetRecipes = append(targetRecipes, []string{
-					strings.ToLower(recipe[0]),
-					strings.ToLower(recipe[1]),
-				})
-			}
-		}
-	}
-
-	if len(targetRecipes) == 0 {
-		return []TreeNode{}
-	}
-	targetTier := elementMap[target].Tier
-
-	var allResults []TreeNode
-
-	for _, recipe := range targetRecipes {
-		ingredient1 := recipe[0]
-		ingredient2 := recipe[1]
-
-		paths1 := [][]string{}
-		if !isBasicElement(ingredient1) {
-			paths1 = bfsGetPaths(elementMap, ingredient1, maxRecipes, targetTier)
-		} else {
-			paths1 = [][]string{{ingredient1}}
-		}
-
-		paths2 := [][]string{}
-		if !isBasicElement(ingredient2) {
-			paths2 = bfsGetPaths(elementMap, ingredient2, maxRecipes, targetTier)
-		} else {
-			paths2 = [][]string{{ingredient2}}
-		}
-
-		for _, path1 := range paths1 {
-			for _, path2 := range paths2 {
-				if maxRecipes > 0 && len(allResults) >= maxRecipes {
-					return allResults
-				}
-
-				// gabung path jadi recipeMap, lalu build tree
-				recipeMap := combinePathsToRecipe(path1, path2, target, recipe, elementMap, targetTier)
-				if len(recipeMap) > 0 {
-					expandRecipePlan(recipeMap, elementMap, targetTier)
-					tree := buildRecipeTree(
-						target,
-						recipeMap,
-						elementMap,
-						make(map[string]bool),
-						make(map[string]TreeNode),
-					)
-					allResults = append(allResults, tree)
-					conn.WriteJSON(map[string]interface{}{
-					"status":   "Progress",
-					"message":  "Finding trees",
-					"duration": 0,
-					"treeData": allResults,
-					"nodesVisited": 0,
-					})
-					log.Println("Sending live update")
-					log.Println(delay)
-					time.Sleep(time.Duration(delay) * time.Millisecond)
-				}
-			}
-		}
-	}
-
-	if maxRecipes > 0 && len(allResults) > maxRecipes {
-		return allResults[:maxRecipes]
-	}
-	return allResults
-}
-
-// bfsGetPaths mencari jalur BFS dari elemen dasar ke target
-func bfsGetPaths(elementMap map[string]Element, target string, maxPaths int, targetTier int) [][]string {
-
-	queue := [][]string{}
-	visited := make(map[string]bool)
-	var results [][]string
-
-	target = strings.ToLower(target)
-
-	// Mulai dari elemen dasar
-	for _, basic := range basicElements {
-		queue = append(queue, []string{basic})
-	}
-
-	// Track level untuk memastikan kita mendapatkan jalur terpendek
-	currentLevel := 1
-	itemsAtCurrentLevel := len(queue)
-	itemsAtNextLevel := 0
-	foundInCurrentLevel := false
-
-	for len(queue) > 0 && (maxPaths <= 0 || len(results) < maxPaths) {
-		// Proses node saat ini
-		path := queue[0]
-		queue = queue[1:]
-		itemsAtCurrentLevel--
-
-		node := strings.ToLower(path[len(path)-1])
-
-		// Skip jika sudah dikunjungi
-		if visited[node] {
-			continue
-		}
-		visited[node] = true
-
-		// Jika menemukan target, tambahkan ke hasil
-		if node == target {
-			results = append(results, path)
-			foundInCurrentLevel = true
-			continue
-		}
-
-		// Cari kombinasi yang menghasilkan elemen baru
-		for name, elem := range elementMap {
-			for _, recipe := range elem.Recipes {
-				if len(recipe) != 2 {
-					continue
-				}
-				if elem.Tier >= targetTier {
-					continue
-				}
-
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-
-				// Jika elemen saat ini bisa digunakan untuk membuat elemen baru
-				if a == node || b == node {
-					newPath := append([]string{}, path...)
-					newPath = append(newPath, name)
-					queue = append(queue, newPath)
-					itemsAtNextLevel++
-				}
-			}
-		}
-
-		// Cek jika level saat ini telah selesai diproses
-		if itemsAtCurrentLevel == 0 {
-			// Jika sudah menemukan target di level ini dan punya hasil, berhenti
-			if foundInCurrentLevel && len(results) > 0 {
+	// Goroutine untuk memonitor kondisi selesai
+	go func() {
+		for {
+			time.Sleep(100 * time.Millisecond)
+			if queue.Length() == 0 || results.IsFull() {
+				close(done) // Signal all workers to finish
 				break
 			}
-
-			// Pindah ke level berikutnya
-			currentLevel++
-			itemsAtCurrentLevel = itemsAtNextLevel
-			itemsAtNextLevel = 0
-			foundInCurrentLevel = false
 		}
-	}
+	}()
 
-	return results
+	wg.Wait()
+	return results.GetTrees()
 }
 
-// combinePathsToRecipe menggabungkan dua jalur dan membuat resep map
-func combinePathsToRecipe(path1, path2 []string, target string, targetIngredients []string, elementMap map[string]Element, targetTier int) map[string][]string {
+func worker(queue *SafeQueue, results *SafeResults, pathKeys *SafePathKeys,
+	elementMap map[string]Element, target string, counter *Counter,
+	wg *sync.WaitGroup, done chan struct{}) {
+	defer wg.Done()
 
-	recipeMap := make(map[string][]string)
-
-	// Tambahkan target dengan bahannya
-	recipeMap[target] = targetIngredients
-
-	// Proses path1
-	for i := 1; i < len(path1); i++ {
-		elem := strings.ToLower(path1[i])
-		if isBasicElement(elem) {
-			continue
-		}
-		if elementMap[elem].Tier >= targetTier {
-			continue
-		}
-
-		// Cari recipe untuk elem ini
-		for _, recipe := range elementMap[elem].Recipes {
-			if len(recipe) != 2 {
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			items := queue.Pop(batchSize)
+			if items == nil || len(items) == 0 {
+				runtime.Gosched()
 				continue
 			}
 
-			ingredient1 := strings.ToLower(recipe[0])
-			ingredient2 := strings.ToLower(recipe[1])
+			for _, curr := range items {
+				counter.Increment()
 
-			// Periksa jika bahan-bahan ada di path sebelumnya
-			found1 := false
-			found2 := false
-
-			for j := 0; j < i; j++ {
-				if strings.ToLower(path1[j]) == ingredient1 {
-					found1 = true
-				}
-				if strings.ToLower(path1[j]) == ingredient2 {
-					found2 = true
-				}
-			}
-
-			// Tambahkan ke recipe jika setidaknya satu bahan ditemukan
-			// atau jika itu elemen dasar
-			if (found1 || isBasicElement(ingredient1)) &&
-				(found2 || isBasicElement(ingredient2)) {
-				recipeMap[elem] = []string{ingredient1, ingredient2}
-				break
-			}
-		}
-	}
-
-	// Proses path2
-	for i := 1; i < len(path2); i++ {
-		elem := strings.ToLower(path2[i])
-		if isBasicElement(elem) || recipeMap[elem] != nil {
-			continue
-		}
-		if elementMap[elem].Tier >= targetTier {
-			continue
-		}
-
-		// Cari recipe untuk elem ini
-		for _, recipe := range elementMap[elem].Recipes {
-			if len(recipe) != 2 {
-				continue
-			}
-
-			ingredient1 := strings.ToLower(recipe[0])
-			ingredient2 := strings.ToLower(recipe[1])
-
-			// Periksa jika bahan-bahan ada di path sebelumnya
-			found1 := false
-			found2 := false
-
-			for j := 0; j < i; j++ {
-				if strings.ToLower(path2[j]) == ingredient1 {
-					found1 = true
-				}
-				if strings.ToLower(path2[j]) == ingredient2 {
-					found2 = true
-				}
-			}
-
-			// Tambahkan ke recipe jika setidaknya satu bahan ditemukan
-			// atau jika itu elemen dasar
-			if (found1 || isBasicElement(ingredient1)) &&
-				(found2 || isBasicElement(ingredient2)) {
-				recipeMap[elem] = []string{ingredient1, ingredient2}
-				break
-			}
-		}
-	}
-
-	return recipeMap
-}
-
-// Fungsi asli untuk konversi jalur ke resep map
-func convertPathsToRecipeMaps(paths [][]string, target string, elementMap map[string]Element) []map[string][]string {
-	var recipeMaps []map[string][]string
-
-	for _, path := range paths {
-		// Skip if the path doesn't lead to the target
-		if len(path) == 0 || strings.ToLower(path[len(path)-1]) != target {
-			continue
-		}
-
-		recipeMap := make(map[string][]string)
-
-		// Build the recipe map from the path
-		for i := 1; i < len(path); i++ {
-			currentElem := strings.ToLower(path[i])
-
-			// Find which elements combined to create this element
-			for _, recipe := range elementMap[currentElem].Recipes {
-				if len(recipe) != 2 {
+				if curr.Depth > bfsMaxDepth {
 					continue
 				}
 
-				a := strings.ToLower(recipe[0])
-				b := strings.ToLower(recipe[1])
-
-				// Check if either ingredient is in our path
-				aInPath := false
-				bInPath := false
-
-				for j := 0; j < i; j++ {
-					if strings.ToLower(path[j]) == a {
-						aInPath = true
+				if len(curr.Open) == 0 {
+					key := pathToStringKey(curr.Path)
+					if pathKeys.Check(key) || isStructuralDuplicate(curr.Path, elementMap, pathKeys) {
+						continue
 					}
-					if strings.ToLower(path[j]) == b {
-						bInPath = true
+					pathKeys.Add(key)
+
+					fp := canonicalizeSteps(curr.Path, elementMap)
+					if !results.Add(TreeNode{}, fp) {
+						continue
 					}
+
+					tree := buildTreeFromSteps(target, curr.Path, elementMap)
+					results.mutex.Lock()
+					results.trees[len(results.trees)-1] = tree
+					results.mutex.Unlock()
+
+					if results.IsFull() {
+						return
+					}
+					continue
 				}
 
-				// If both ingredients are in our path or at least one is in our path
-				// (this is a simplification, may need more sophisticated logic)
-				if aInPath || bInPath || isBasicElement(a) || isBasicElement(b) {
-					recipeMap[currentElem] = []string{a, b}
+				// Expand first open element
+				for openElem := range curr.Open {
+					queue.Push(expandOpenElement(openElem, curr, elementMap)...)
 					break
 				}
+
+				queue.PruneLargeWithPriority()
 			}
 		}
+	}
+}
 
-		// Only add the recipe map if it's not empty
-		if len(recipeMap) > 0 {
-			recipeMaps = append(recipeMaps, recipeMap)
+func isValidRecipe(a, b string, targetTier int, elementMap map[string]Element) bool {
+	elemA, okA := elementMap[a]
+	elemB, okB := elementMap[b]
+
+	if !okA || !okB {
+		return false
+	}
+	// ❗ Jika tier belum dikenali (-1), masih bisa dianggap valid
+	if elemA.Tier < 0 || elemB.Tier < 0 {
+		return true
+	}
+	return elemA.Tier < targetTier && elemB.Tier < targetTier
+}
+
+func createInitialQueueItems(target string, elementMap map[string]Element) []BuildQueueItem {
+	queue := []BuildQueueItem{}
+	targetTier := elementMap[target].Tier
+
+	for _, recipe := range elementMap[target].Recipes {
+		if len(recipe) != 2 {
+			continue
 		}
+		a := strings.ToLower(recipe[0])
+		b := strings.ToLower(recipe[1])
+		if !isValidRecipe(a, b, targetTier, elementMap) {
+			continue
+		}
+
+		step := RecipeStep{Element: target, Ingredients: []string{a, b}}
+		open := map[string]bool{}
+		if !isBasicElement(a) {
+			open[a] = true
+		}
+		if !isBasicElement(b) {
+			open[b] = true
+		}
+
+		queue = append(queue, BuildQueueItem{
+			Path:  []RecipeStep{step},
+			Open:  open,
+			Depth: 1,
+		})
+	}
+	return queue
+}
+
+func expandOpenElement(openElem string, curr BuildQueueItem, elementMap map[string]Element) []BuildQueueItem {
+	newItems := []BuildQueueItem{}
+	elemTier := elementMap[openElem].Tier
+
+	for _, recipe := range elementMap[openElem].Recipes {
+		if len(recipe) != 2 {
+			continue
+		}
+		a := strings.ToLower(recipe[0])
+		b := strings.ToLower(recipe[1])
+		if !isValidRecipe(a, b, elemTier, elementMap) {
+			continue
+		}
+
+		newStep := RecipeStep{Element: openElem, Ingredients: []string{a, b}}
+		newOpen := copyOpenMap(curr.Open)
+		delete(newOpen, openElem)
+		if !isBasicElement(a) {
+			newOpen[a] = true
+		}
+		if !isBasicElement(b) {
+			newOpen[b] = true
+		}
+
+		newPath := append([]RecipeStep{}, curr.Path...)
+		newPath = append(newPath, newStep)
+
+		newItems = append(newItems, BuildQueueItem{
+			Path:  newPath,
+			Open:  newOpen,
+			Depth: curr.Depth + 1,
+		})
 	}
 
-	return recipeMaps
+	return newItems
+}
+
+func copyOpenMap(orig map[string]bool) map[string]bool {
+	newMap := make(map[string]bool)
+	for k, v := range orig {
+		newMap[k] = v
+	}
+	return newMap
+}
+
+func buildTreeFromSteps(root string, steps []RecipeStep, elementMap map[string]Element) TreeNode {
+	recipeMap := make(map[string][]string)
+	for _, step := range steps {
+		recipeMap[step.Element] = step.Ingredients
+	}
+
+	// Menggunakan fungsi buildRecipeTree yang sudah ada di treebuilder.go
+	visitedMap := make(map[string]bool)
+	memoizeMap := make(map[string]TreeNode)
+	tree := buildRecipeTree(root, recipeMap, elementMap, visitedMap, memoizeMap)
+	sortTreeChildren(&tree)
+	return tree
+}
+
+func sortTreeChildren(node *TreeNode) {
+	if len(node.Children) > 0 {
+		sort.Slice(node.Children, func(i, j int) bool {
+			return node.Children[i].Name < node.Children[j].Name
+		})
+		for i := range node.Children {
+			sortTreeChildren(&node.Children[i])
+		}
+	}
+}
+
+func isStructuralDuplicate(steps []RecipeStep, elementMap map[string]Element, pathKeys *SafePathKeys) bool {
+	var normalized []string
+	for _, step := range steps {
+		a := strings.ToLower(step.Ingredients[0])
+		b := strings.ToLower(step.Ingredients[1])
+		e := strings.ToLower(step.Element)
+
+		aTier := elementMap[a].Tier
+		bTier := elementMap[b].Tier
+		eTier := elementMap[e].Tier
+
+		if a > b {
+			a, b = b, a
+			aTier, bTier = bTier, aTier
+		}
+
+		normalized = append(normalized,
+			fmt.Sprintf("%s(%d):%s(%d)+%s(%d)", e, eTier, a, aTier, b, bTier))
+	}
+
+	sort.Strings(normalized)
+	key := strings.Join(normalized, "|")
+
+	if pathKeys.Check(key) {
+		return true
+	}
+	pathKeys.Add(key)
+	return false
+}
+
+func pathToStringKey(steps []RecipeStep) string {
+	keys := make([]string, 0, len(steps))
+	for _, step := range steps {
+		a := strings.ToLower(step.Ingredients[0])
+		b := strings.ToLower(step.Ingredients[1])
+		if a > b {
+			a, b = b, a
+		}
+		keys = append(keys, fmt.Sprintf("%s:%s+%s", step.Element, a, b))
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, "|")
+}
+
+func canonicalizeTree(node TreeNode) string {
+	if len(node.Children) == 0 {
+		return node.Name
+	}
+	var childrenStr []string
+	for _, child := range node.Children {
+		childrenStr = append(childrenStr, canonicalizeTree(child))
+	}
+	sort.Strings(childrenStr)
+	return fmt.Sprintf("%s(%s)", node.Name, strings.Join(childrenStr, ","))
+}
+
+// Fungsi live update untuk WebSocket
+func bfsMultipleLive(elementMap map[string]Element, target string, maxRecipes int, delay int, conn *websocket.Conn) []TreeNode {
+	target = strings.ToLower(target)
+	pathKeys := newSafePathKeys()
+	counter := &Counter{}
+
+	if isBasicElement(target) {
+		return []TreeNode{{Name: capitalize(target)}}
+	}
+
+	if elem, ok := elementMap[target]; !ok || len(elem.Recipes) == 0 {
+		return []TreeNode{}
+	}
+
+	queue := newSafeQueue()
+	results := newSafeResults(maxRecipes)
+
+	// Update websocket dengan status awal
+	conn.WriteJSON(map[string]interface{}{
+		"status":       "Starting",
+		"message":      "Initializing search",
+		"treeData":     []TreeNode{},
+		"nodesVisited": 0,
+	})
+
+	// Inisialisasi queue dengan recipe awal
+	queue.Push(createInitialQueueItems(target, elementMap)...)
+
+	// Channel untuk hasil yang ditemukan
+	resultChan := make(chan TreeNode, maxRecipes)
+	done := make(chan struct{})
+
+	// Buat mutex untuk sinkronisasi websocket
+	var wsMutex sync.Mutex
+
+	// Goroutine untuk monitor progress dan kirim update WebSocket
+	go func() {
+		lastCount := 0
+		for {
+			select {
+			case <-done:
+				return
+			case tree := <-resultChan:
+				wsMutex.Lock()
+				conn.WriteJSON(map[string]interface{}{
+					"status":       "Progress",
+					"message":      "Finding trees",
+					"treeData":     []TreeNode{tree},
+					"nodesVisited": counter.Get(),
+				})
+				wsMutex.Unlock()
+				fmt.Println("Live update sent")
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+			default:
+				// Kirim update progress setiap 500ms jika ada perubahan signifikan
+				time.Sleep(500 * time.Millisecond)
+				currentCount := counter.Get()
+				if currentCount-lastCount > 1000 {
+					wsMutex.Lock()
+					conn.WriteJSON(map[string]interface{}{
+						"status":       "Searching",
+						"message":      fmt.Sprintf("Explored %d nodes, found %d recipes", currentCount, results.Count()),
+						"nodesVisited": currentCount,
+					})
+					wsMutex.Unlock()
+					lastCount = currentCount
+				}
+			}
+		}
+	}()
+
+	var wg sync.WaitGroup
+
+	// Buat worker untuk mencari recipes
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go liveWorker(queue, results, pathKeys, elementMap, target, counter, resultChan, &wg, done)
+	}
+
+	// Goroutine untuk monitor kondisi selesai
+	go func() {
+		for {
+			time.Sleep(100 * time.Millisecond)
+			if (queue.Length() == 0 && results.Count() > 0) || results.IsFull() {
+				close(done) // Signal all workers to finish
+				break
+			}
+		}
+	}()
+
+	wg.Wait()
+
+	// Update websocket dengan status akhir
+	conn.WriteJSON(map[string]interface{}{
+		"status":       "Completed",
+		"message":      fmt.Sprintf("Found %d recipes, explored %d nodes", results.Count(), counter.Get()),
+		"nodesVisited": counter.Get(),
+	})
+
+	return results.GetTrees()
+}
+
+func liveWorker(queue *SafeQueue, results *SafeResults, pathKeys *SafePathKeys,
+	elementMap map[string]Element, target string, counter *Counter,
+	resultChan chan<- TreeNode, wg *sync.WaitGroup, done chan struct{}) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			items := queue.Pop(batchSize)
+			if items == nil || len(items) == 0 {
+				runtime.Gosched()
+				continue
+			}
+
+			for _, curr := range items {
+				counter.Increment()
+
+				if curr.Depth > bfsMaxDepth {
+					continue
+				}
+
+				if len(curr.Open) == 0 {
+					key := pathToStringKey(curr.Path)
+					if pathKeys.Check(key) || isStructuralDuplicate(curr.Path, elementMap, pathKeys) {
+						continue
+					}
+					pathKeys.Add(key)
+
+					fp := canonicalizeSteps(curr.Path, elementMap)
+					if !results.Add(TreeNode{}, fp) {
+						continue
+					}
+
+					tree := buildTreeFromSteps(target, curr.Path, elementMap)
+					results.mutex.Lock()
+					results.trees[len(results.trees)-1] = tree
+					results.mutex.Unlock()
+
+					resultChan <- tree
+					if results.IsFull() {
+						return
+					}
+					continue
+				}
+
+				// Expand first open element
+				for openElem := range curr.Open {
+					queue.Push(expandOpenElement(openElem, curr, elementMap)...)
+					break
+				}
+
+				queue.PruneLargeWithPriority()
+			}
+		}
+	}
+}
+
+func canonicalizeSteps(steps []RecipeStep, elementMap map[string]Element) string {
+	var normalized []string
+	for _, step := range steps {
+		a := strings.ToLower(step.Ingredients[0])
+		b := strings.ToLower(step.Ingredients[1])
+		e := strings.ToLower(step.Element)
+		if a > b {
+			a, b = b, a
+		}
+		normalized = append(normalized, fmt.Sprintf("%s:%s+%s", e, a, b))
+	}
+	sort.Strings(normalized)
+	return strings.Join(normalized, "|")
 }

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"strings"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 	"os"
 
@@ -22,9 +22,9 @@ var elementMap map[string]Element
 type RequestData struct {
 	Algorithm  string `json:"algorithm"`
 	Target     string `json:"target"`
-	MaxRecipes int `json:"maxRecipes"`
+	MaxRecipes int    `json:"maxRecipes"`
 	LiveUpdate bool   `json:"liveUpdate"`
-	Delay      int   `json:"delay"`
+	Delay      int    `json:"delay"`
 }
 
 type Element struct {
@@ -106,7 +106,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			recipePlans = bfsMultipleLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
 			log.Println("BFS Live Update")
 		} else {
-			recipePlans = bfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
+			recipePlans, nodesVisited = bfsMultiple(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
 
 	} else if reqData.Algorithm == "DFS" {
@@ -129,16 +129,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// 		"message": "Initializing search algorithm",
 	// 	})
 
-	// 	if reqData.LiveUpdate {
-	// 		recipePlans = bidirectionalSearchLive(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes, reqData.Delay, conn)
-	// 	} else {
-	// 		recipePlans = bidirectionalSearch(elementMap, strings.ToLower(reqData.Target), reqData.MaxRecipes)
-	// 	}
-	// }
+		if reqData.LiveUpdate {
+			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
+		} else {
+			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
+		}
+	}
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
-	
+
 	if len(recipePlans) == 0 {
 		conn.WriteJSON(map[string]interface{}{
 			"status":  "Completed",
@@ -152,9 +152,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn.WriteJSON(map[string]interface{}{
 		"status":   "Completed",
 		"message":  fmt.Sprintf("Found %d recipe plans", len(recipePlans)),
-		"duration": elapsed.String(),
+		"duration": formatTime(elapsed.String()),
 		"treeData": recipePlans,
-		"nodes": nodesVisited,
+		"nodes":    nodesVisited,
 	})
 }
 
@@ -193,4 +193,16 @@ func capitalize(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func formatTime(time string) string{
+	result := ""
+	for i, char := range time {
+		if i != len(time)-1 && char == 'm' && (string(time[i])+string(time[i+1])) != "ms" {
+			result += "m "
+		} else {
+			result += string(char)
+		}
+	}
+	return result
 }
