@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"os"
 
 	"github.com/gorilla/websocket"
 )
@@ -120,12 +121,13 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		} else {
 			recipePlans, nodesVisited = dfsMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes)
 		}
-	} else if reqData.Algorithm == "BID" {
+	}
+	// } else if reqData.Algorithm == "BID" {
 
-		conn.WriteJSON(map[string]interface{}{
-			"status":  "Starting Bidirectional Search",
-			"message": "Initializing search algorithm",
-		})
+	// 	conn.WriteJSON(map[string]interface{}{
+	// 		"status":  "Starting Bidirectional Search",
+	// 		"message": "Initializing search algorithm",
+	// 	})
 
 		if reqData.LiveUpdate {
 			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
@@ -167,9 +169,15 @@ func main() {
 		http.ServeFile(w, r, "../public/tree.json")
 	})
 
-	log.Println("Server started at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server started at http://localhost:%s\n", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
+
 
 func isBasicElement(name string) bool {
 	for _, b := range basicElements {
