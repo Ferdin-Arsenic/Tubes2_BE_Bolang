@@ -134,7 +134,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		} else {
 			recipePlans, nodesVisited = bidirectionalMultiple(strings.ToLower(reqData.Target), reqData.MaxRecipes, min(reqData.MaxRecipes*1000, 20000))
 		}
-	}
+	
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Ditemukan %d resep via %s.\n", len(recipePlans), reqData.Algorithm)
